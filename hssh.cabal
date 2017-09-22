@@ -22,6 +22,7 @@ library
   -- other-extensions:    
   build-depends:       base >=4.9 && <4.10
                      , mtl
+                     , deepseq
                      , template-haskell
                      , process
                      , filepath

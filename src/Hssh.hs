@@ -4,6 +4,8 @@
 {-# LANGUAGE GADTs #-}
 module Hssh where
 
+import System.Exit
+import System.IO
 import System.Process
 import Control.Monad.Writer
 import Data.List
@@ -13,6 +15,30 @@ import Control.Monad
 import System.Directory
 import Language.Haskell.TH
 import System.Environment
+import Control.Exception as C
+import Control.Concurrent.MVar
+import Control.Concurrent
+import Control.DeepSeq (rnf)
+
+data Failure = Failure
+    { prog :: String
+    , args :: [String]
+    , code :: Int
+    }
+
+instance Show Failure where
+    show f = intercalate " " $
+        [ "callProcess:"
+        , prog f
+        ]
+        ++ map show (args f)
+        ++
+        [ "(exit"
+        , show (code f)
+        , "): failed"
+        ]
+
+instance Exception Failure
 
 class ExecArgs a where
     toArgs :: [String] -> a
@@ -38,19 +64,32 @@ newtype ReadCmd a = ReadCmd { runReadCmd :: WriterT String IO a }
 readCmd :: ReadCmd () -> IO String
 readCmd = execWriterT . runReadCmd
 
-newtype PipeCmd = PipeCmd { unPipe :: [CreateProcess] }
+newtype PipeCmd  = PipeCmd { unPipe :: [CreateProcess] }
     deriving Monoid
 
-runPipe :: PipeCmd -> IO ()
-runPipe (PipeCmd procs) = go Inherit procs
+runPipe' :: (CreateProcess -> StdStream -> IO a) -> PipeCmd -> IO a
+runPipe' handler (PipeCmd procs) = go Inherit procs
     where
-        go :: StdStream -> [CreateProcess] -> IO ()
-        go inp [last] = withCreateProcess (last {std_in = inp}) $ \_ _ _ ph -> void $ waitForProcess ph
+        -- go :: StdStream -> StdStream -> [CreateProcess] -> IO a
+        go inp [last] = handler last inp
+            -- withCreateProcess (last {std_in = inp, std_out = out}) $ \_ sout _ ph -> handler ph sout
         go inp (next:rest@(_:_)) = do
-            withCreateProcess (next {std_in = inp, std_out = CreatePipe}) $ \sin (Just sout) serr ph -> do
-                go (UseHandle sout) rest
+            withCreateProcess (next {std_in = inp, std_out = CreatePipe}) $ \_ (Just sout) _ ph -> do
+                r <- go (UseHandle sout) rest
                 e <- waitForProcess ph
-                return ()
+                case e of
+                    ExitSuccess -> return r
+                    ExitFailure r -> createProcessToFailure next r
+
+runPipe :: PipeCmd -> IO ()
+runPipe = runPipe' $ \cp h -> withCreateProcess cp{std_in = h} $ \_ _ _ ph -> do
+    e <- waitForProcess ph
+    case e of
+        ExitSuccess -> return ()
+        ExitFailure r -> createProcessToFailure cp r
+
+readPipe :: PipeCmd -> IO String
+readPipe = runPipe' readCreateProcessInputHandle
 
 instance ExecArgs PipeCmd where
     toArgs (cmd:args) = PipeCmd [proc cmd args]
@@ -84,3 +123,28 @@ loadEnv :: Q [Dec]
 loadEnv = do
     bins <- runIO pathBins
     fmap join $ mapM loadPath bins
+
+
+readCreateProcessInputHandle cp input = do
+    let 
+        cp_opts = cp
+            { std_in  = input
+            , std_out = CreatePipe
+            }
+    (ex, output) <- withCreateProcess cp_opts $
+      \_ (Just outh) _ ph -> do
+
+        output  <- hGetContents outh
+        C.evaluate $ rnf output
+        ex <- waitForProcess ph
+        return (ex, output)
+
+    case ex of
+     ExitSuccess   -> return output
+     ExitFailure r -> createProcessToFailure cp_opts r
+
+createProcessToFailure :: CreateProcess -> Int -> IO a
+createProcessToFailure CreateProcess{cmdspec=s} i =
+    case s of
+        ShellCommand{} -> error "We don't handle shell commands"
+        RawCommand f a -> throw $ Failure f a i
