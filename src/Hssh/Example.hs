@@ -4,7 +4,6 @@ module Hssh.Example where
 
 import Control.Monad
 import Hssh
-import Hssh.TH
 import System.Directory
 import Data.Monoid
 

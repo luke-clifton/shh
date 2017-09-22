@@ -18,7 +18,6 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Hssh
                      , Hssh.Example
-                     , Hssh.TH
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.9 && <4.10

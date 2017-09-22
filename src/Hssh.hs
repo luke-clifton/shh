@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 module Hssh where
@@ -10,6 +11,7 @@ import Data.List.Split
 import Data.Char
 import Control.Monad
 import System.Directory
+import Language.Haskell.TH
 import System.Environment
 
 class ExecArgs a where
@@ -64,3 +66,21 @@ pathBins = do
     paths <- filterM doesDirectoryExist paths
     bins <- nub . concat <$> mapM getDirectoryContents paths
     return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do"])
+
+loadPath :: String -> Q [Dec]
+loadPath path =
+    let
+        impl = valD (varP (mkName path)) (normalB [|
+            toArgs [] path 
+            |]) []
+        name = mkName path
+        typn = mkName "a"
+        typ = SigD (mkName path) (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
+    in do
+        i <- impl
+        return $ [typ,i]
+
+loadEnv :: Q [Dec]
+loadEnv = do
+    bins <- runIO pathBins
+    fmap join $ mapM loadPath bins
