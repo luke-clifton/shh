@@ -59,10 +59,10 @@ instance ExecArgs (ReadCmd ()) where
     toArgs (cmd:args) =  ReadCmd $ lift (readProcess cmd args "") >>= tell
 
 newtype ReadCmd a = ReadCmd { runReadCmd :: WriterT String IO a }
-    deriving (Functor, Applicative, Monad)
+    deriving (Functor, Applicative, Monad, MonadIO)
 
-readCmd :: ReadCmd () -> IO String
-readCmd = execWriterT . runReadCmd
+readCmd :: MonadIO io => ReadCmd () -> io String
+readCmd = liftIO . execWriterT . runReadCmd
 
 newtype PipeCmd  = PipeCmd { unPipe :: [CreateProcess] }
     deriving Monoid
