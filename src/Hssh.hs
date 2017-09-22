@@ -65,7 +65,7 @@ pathBins = do
     paths <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM doesDirectoryExist paths
     bins <- nub . concat <$> mapM getDirectoryContents paths
-    return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do"])
+    return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do", "in", "let"])
 
 loadPath :: String -> Q [Dec]
 loadPath path =
