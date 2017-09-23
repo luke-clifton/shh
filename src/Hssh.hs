@@ -111,6 +111,13 @@ runPipe' handler (P procs) = liftIO $ go Inherit procs
         go inp (next:rest@(_:_)) = do
             withCreateProcess (next {std_in = inp, std_out = CreatePipe}) $ \_ (Just sout) _ ph -> do
                 r <- go (UseHandle sout) rest
+                -- TODO: Should we async wait for process so that early failures
+                -- in a pipeline will kill upstream programs that can continue?
+                --
+                --     runPipe $ false <> less
+                --
+                -- does not terminate immediately in it's current form, though
+                -- the exception is still thrown after less completes.
                 e <- waitForProcess ph
                 case e of
                     ExitFailure code
