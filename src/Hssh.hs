@@ -59,7 +59,7 @@ instance Exception Failure
 --
 -- Create this type using the @ExecArgs@ instance.
 newtype Pipe = P [CreateProcess]
-    deriving (Monoid)
+    deriving (Semigroup, Monoid)
 
 
 -- | A monad transformer for sequencing (as oposed to piping) commands.
@@ -70,7 +70,7 @@ newtype CmdT m a = CmdT {unCmdT :: FreeT (Coyoneda (U Pipe)) m a}
 -- | A command monad specialised to IO.
 type Cmd = CmdT IO
 
--- | Run a command in any monad that stack that can do IO
+-- | Run a command in any monad stack that can do IO
 runCmd :: forall m a. MonadIO m => CmdT m a -> m a
 runCmd (CmdT u) = do
     a <- runFreeT u
@@ -175,7 +175,7 @@ instance ExecArgs Pipe where
 
 -- | Allows you to sequence the @Pipe@ instances.
 instance Monad m => ExecArgs (CmdT m ()) where
-    toArgs args = CmdT $ liftF $ liftCoyoneda $ U $ toArgs args
+    toArgs = CmdT . liftF . liftCoyoneda . U . toArgs
 
 
 -- | Commands can be executed directly in IO (this goes via the @CmdT@ instance)

@@ -24,7 +24,7 @@ Enable Temlpate Haskell and load the environment
     {-# LANGUAGE TemplateHaskell #-}
     $(loadEnv)
 
-You know have all your executables available as simple to read
+You now have all your executables available as simple to read
 Haskell functions.
 
 ### Script Usage

@@ -26,7 +26,7 @@ main = do
     print =<< length <$> readCmd ls
 
     -- Or read the result of a pipe
-    line <- readPipe (env <> grep "^USER=") >>= print . map toUpper
+    readPipe (env <> grep "^USER=") >>= putStr . map toUpper
 
     -- Read the result of a series of commands.
     r <- readCmd $ do
