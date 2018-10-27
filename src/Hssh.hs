@@ -116,6 +116,17 @@ runProc :: Proc a -> IO a
 runProc (PP f) = do
     join $ f stdin stdout
 
+readProc :: Proc a -> IO String
+readProc (PP f) = do
+    (r,w) <- createPipe
+    wa <- f stdin w
+    output  <- hGetContents r
+    a <- async $ (C.evaluate $ rnf output) *> pure output
+    wa
+    hClose w
+    wait a
+    
+
 -- mkPP :: String -> [String] -> PP ()
 -- mkPP cmd args = PP $ \i h -> do
 --     let
