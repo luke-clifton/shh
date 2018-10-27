@@ -86,6 +86,12 @@ instance Applicative Proc where
         a' <- join $ a i o
         pure $ (pure $ f' a')
 
+instance Monad Proc where
+    (PP a) >>= f = PP $ \i o -> do
+        a' <- join $ a i o
+        let PP f' = f a'
+        f' i o
+
 waitAndThrow :: String -> [String] -> ProcessHandle -> IO ()
 waitAndThrow cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
