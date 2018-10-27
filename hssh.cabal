@@ -21,6 +21,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.9 && <4.12
+                     , async
                      , deepseq
                      , free
                      , kan-extensions
