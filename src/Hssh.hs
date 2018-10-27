@@ -82,8 +82,7 @@ newtype Proc a = PP (Handle -> Handle -> IO (IO a))
 instance Applicative Proc where
     pure a = PP $ \_ _ -> pure (pure a)
     (PP f) <*> (PP a) = PP $ \i o -> do
-        f' <- join $ f i o
-        a' <- join $ a i o
+        (f', a') <- concurrently (join $ f i o) (join $ a i o)
         pure $ (pure $ f' a')
 
 instance Monad Proc where
