@@ -4,18 +4,22 @@ A template Haskell hack to create Haskell functions from every executable on
 your `$PATH` environment variable. Makes using GHCi as a shell really quite
 nice.
 
-## Pipeing
+## Piping
 
 Supports shell like piping.
 
-    runPipe $ cat "/dev/urandom" <> xxd <> head
+    cat "/dev/urandom" |> xxd |> head
 
 ## Output capture
 
 Supports capturing the output of commands as a `String`
 
-    loggedInUsers <- nub . words <$> readCmd users
+    loggedInUsers <- nub . words <$> readProc users
     putStrLn loggedInUsers
+
+## Redirection
+
+    ls &> Append "result.txt"
 
 ## Usage
 
