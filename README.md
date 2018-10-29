@@ -4,6 +4,25 @@ A template Haskell hack to create Haskell functions from every executable on
 your `$PATH` environment variable. Makes using GHCi as a shell really quite
 nice.
 
+## Mnemonics 
+
+Hssh has many symbols that might seem intimidating at first, but there
+is a simple mnemonic for them.
+
+    |     Piping. Looks like a pipe, same as in POSIX shells.
+    &     Redirection, think of the shell `2>&1`
+    >,<   The direction of flow of a command
+    !     Operate on stderr instead of stdout
+
+So, for example,
+
+    ls |> cat      Pipe the stdout of `ls` into stdin of `cat`
+    cat <| ls      Same as above
+    ls &> StdErr   Redirect stdout of `ls` to wherever stderr is going.
+    StdErr <& ls   Same as above
+    ls &!> StdOut  Redirect stderr of `ls` to wherever stdout is going.
+    StdOut <!& ls  Same as above
+
 ## Piping
 
 Supports shell like piping.

@@ -195,6 +195,35 @@ readProc (PP f) = liftIO $ do
     hClose w
     wait a
 
+withRead :: MonadIO io => Proc a -> (String -> io b) -> io b
+withRead (PP f) k = do
+    (wa,w,a,output,r) <- liftIO $ do
+        (r,w) <- createPipe
+        wa <- f stdin w stderr
+        output <- hGetContents r
+        a <- async wa
+        pure (wa,w,a,output,r)
+    res <- k output
+    liftIO $ do
+        hClose w
+        hClose r
+        wait a
+        pure res
+
+writeProc :: MonadIO io => Proc a -> String -> io a
+writeProc (PP f) input = liftIO $ do
+    (r,w) <- createPipe
+    wa <- f r stdout stderr
+    hPutStr w input
+    hClose w
+    wa
+
+(>>>) :: MonadIO io => String -> Proc a -> io a
+(>>>) = flip writeProc
+
+(<<<) :: MonadIO io => Proc a -> String -> io a
+(<<<) = writeProc
+
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.
 class ExecArg a where
