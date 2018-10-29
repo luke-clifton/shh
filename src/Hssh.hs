@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -6,6 +7,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 module Hssh where
+
+import System.IO.Unsafe
 
 import System.Exit
 import System.Posix.Signals
@@ -45,36 +48,32 @@ data Failure = Failure
     }
 
 instance Show Failure where
-    show f = intercalate " " $
-        [ "Command"
-        , show $ prog f
+    show f = concat $
+        [ "Command `"
         ]
-        ++ map show (args f)
+        ++ [intercalate " " (prog f : map show (args f))]
         ++
-        [ "failed [exit"
-        , show (code f) ++ "]"
+        [ "` failed [exit "
+        , show (code f)
+        , "]"
         ]
 
 instance Exception Failure
 
--- | The type of a pipeline of commands (or even just a single one, it's
--- just a short pipe)
---
--- Create this type using the @ExecArgs@ instance.
-newtype Pipe = P [Either CreateProcess (Cmd ())]
-    deriving (Semigroup, Monoid)
+class PipeResult f where
+    -- | Use this to send the output of on process into the input of another.
+    -- This is just like a shells `|` operator.
+    --
+    -- The result is polymorphic in it's output, and can result in either
+    -- another `Proc a` or an `IO a` depending on the context in which it is
+    -- used.
+    (|>) :: Proc a -> Proc a -> f a
 
-data ProcHandle
-    = ProcCreatePipe
-    | ProcUseHandle Handle
+instance PipeResult IO where
+    a |> b = runProc $ a |> b
 
-phToSs :: ProcHandle -> StdStream
-phToSs ProcCreatePipe = CreatePipe
-phToSs (ProcUseHandle h) = UseHandle h
-
-phToH :: ProcHandle -> Handle
-phToH (ProcUseHandle h) = h
-phToH _ = error "Don't do this"
+instance PipeResult Proc where
+    (|>) = (<>)
 
 newtype Proc a = PP (Handle -> Handle -> IO (IO a))
     deriving Functor
@@ -82,14 +81,18 @@ newtype Proc a = PP (Handle -> Handle -> IO (IO a))
 instance Applicative Proc where
     pure a = PP $ \_ _ -> pure (pure a)
     (PP f) <*> (PP a) = PP $ \i o -> do
-        (f', a') <- concurrently (join $ f i o) (join $ a i o)
-        pure $ (pure $ f' a')
+        f' <- join $ f i o
+        a' <- join $ a i o
+        pure $! (pure $! f' a')
 
 instance Monad Proc where
     (PP a) >>= f = PP $ \i o -> do
         a' <- join $ a i o
         let PP f' = f a'
         f' i o
+
+instance MonadIO Proc where
+    liftIO io = PP $ \_ _ -> pure io
 
 waitAndThrow :: String -> [String] -> ProcessHandle -> IO ()
 waitAndThrow cmd arg ph = waitForProcess ph >>= \case
@@ -98,6 +101,11 @@ waitAndThrow cmd arg ph = waitForProcess ph >>= \case
         | otherwise -> createFailure cmd arg c
     ExitSuccess -> pure ()
 
+-- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
+-- into the stdin of the next. However, consider using `|>` instead which
+-- behaves when used in an @IO@ context. If you use `<>` in an IO monad
+-- you will be using the `IO` instance of semigroup which is a sequential
+-- execution. @|>@ prevents that error.
 instance Semigroup (Proc a) where
     (PP a) <> (PP b) = PP $ \i o -> do
         (r,w) <- createPipe
@@ -107,17 +115,20 @@ instance Semigroup (Proc a) where
             wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
         pure wait
 
+-- | Create a @Proc@ from a command and a list of arguments.
 mkProc :: String -> [String] -> Proc ()
 mkProc cmd args = PP $ \i o -> do
     (_,so,_,ph) <- createProcess_ cmd (proc cmd args) {std_in = UseHandle i, std_out = UseHandle o, close_fds = True}
     pure $ void $! waitAndThrow cmd args ph
 
-runProc :: Proc a -> IO a
-runProc (PP f) = do
+-- | Run a @Proc@ in any @MonadIO@ (including other @Proc@s).
+runProc :: MonadIO io => Proc a -> io a
+runProc (PP f) = liftIO $ do
     join $ f stdin stdout
 
-readProc :: Proc a -> IO String
-readProc (PP f) = do
+-- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
+readProc :: MonadIO io => Proc a -> io String
+readProc (PP f) = liftIO $ do
     (r,w) <- createPipe
     wa <- f stdin w
     output  <- hGetContents r
@@ -125,175 +136,43 @@ readProc (PP f) = do
     wa
     hClose w
     wait a
-    
-
--- mkPP :: String -> [String] -> PP ()
--- mkPP cmd args = PP $ \i h -> do
---     let
---         runCp o next = do
---             let
---                 cp = (proc cmd args) {std_in = i, std_out = o}
---             withCreateProcess cp (\_ so _ ph -> do
---                 next so (do
---                     e <- waitForProcess ph
---                     case e of
---                         ExitFailure code
---                             -- Within a pipeline, intermediate results can fail with SIGPIPE.
---                             -- In bash they can fail with anything.
---                             | fromIntegral code == negate sigPIPE -> return ()
---                             | otherwise -> createProcessToFailure cp code
---                         ExitSuccess -> return ()
---                     ))
---         
-        
-
-
--- | A monad transformer for sequencing (as oposed to piping) commands.
--- Create this type using the @ExecArgs@ instance.
-newtype CmdT m a = CmdT {unCmdT :: FreeT (Coyoneda (U Pipe)) m a}
-    deriving (Functor, Applicative, Monad, MonadIO)
-
--- | A command monad specialised to IO.
-type Cmd = CmdT IO
-
--- | Run a command in any monad stack that can do IO
-runCmd :: forall m a. MonadIO m => CmdT m a -> m a
-runCmd = runCmdFromTo Inherit Inherit
-
-runCmdFromTo :: forall m a. MonadIO m => StdStream -> StdStream -> CmdT m a -> m a
-runCmdFromTo inp oup (CmdT u) = do
-    a <- runFreeT u
-    interpret a
-
-    where
-    interpret :: forall b. FreeF (Coyoneda (U Pipe)) b (FreeT (Coyoneda (U Pipe)) m b) -> m b
-    interpret (Pure a) = pure a
-    interpret (Free (Coyoneda f (U p))) = do
-        r <- runPipeFromTo inp oup p
-        i <- runFreeT $ f r
-        interpret i
-
--- | `runCmd` specialised to IO
-runCmd' :: Cmd a -> IO a
-runCmd' = runCmd
-
--- | Read the result of a sequence of commands into a @String@
-readCmd :: forall m a. MonadIO m => CmdT m a -> m String
-readCmd (CmdT u) = do
-    a <- runFreeT u
-    execWriterT $ interpret a
-    where
-        interpret :: forall b. FreeF (Coyoneda (U Pipe)) b (FreeT (Coyoneda (U Pipe)) m b) -> WriterT String m b
-        interpret (Pure a) = pure a
-        interpret (Free (Coyoneda f (U p))) = do
-            r <- liftIO $ readPipe p
-            tell r
-            i <- lift $ runFreeT $ f ()
-            interpret i
-
-
--- | Helper function for building up @runPipe@ and @readPipe@.
-runPipe' :: MonadIO io => StdStream -> (Either CreateProcess (Cmd ()) -> StdStream -> IO a) -> Pipe -> io a
-runPipe' initp handler (P procs) = liftIO $ go initp procs
-    where
-        go inp [last] = handler last inp
-        go inp ((Right next):rest@(_:_)) = do
-            bracket
-                createPipe
-                (\(r,w) -> hClose r >> hClose w)
-                (\(r,w) -> snd <$> concurrently (runCmdFromTo inp (UseHandle w) next) (go (UseHandle r) rest))
-        go inp ((Left next):rest@(_:_)) = do
-            withCreateProcess (next {std_in = inp, std_out = CreatePipe}) $ \_ (Just sout) _ ph -> do
-                r <- go (UseHandle sout) rest
-                -- TODO: Should we async wait for process so that early failures
-                -- in a pipeline will kill upstream programs that can continue?
-                --
-                --     runPipe $ false <> less
-                --
-                -- does not terminate immediately in it's current form, though
-                -- the exception is still thrown after less completes.
-                e <- waitForProcess ph
-                case e of
-                    ExitFailure code
-                        -- Within a pipeline, intermediate results can fail with SIGPIPE.
-                        -- In bash they can fail with anything.
-                        | fromIntegral code == negate sigPIPE -> return ()
-                        | otherwise -> createProcessToFailure next code
-                    ExitSuccess -> return ()
-                return r
-
--- | Run a pipeline. The @Monoid@ instance of @Pipe@ creates a pipe between
--- the processes, feeding the output of one into the input of another. Very
--- similar to Bash pipelines, except we throw execptions when a process exits
--- with a failure condition other than SIGPIPE.
---
--- >>> runPipe $ cat "/dev/urandom" <> xxd <> head "-n" 50
-runPipeFromTo :: MonadIO io => StdStream -> StdStream -> Pipe -> io ()
-runPipeFromTo inp oup = runPipe' inp $ \ecp h -> case ecp of
-    Left cp -> withCreateProcess cp{std_in = h, std_out = oup} $ \_ _ _ ph -> do
-        e <- waitForProcess ph
-        case e of
-            ExitSuccess -> return ()
-            ExitFailure r -> createProcessToFailure cp r
-    Right cmd -> error "Undefined runPipe case"
-
-runPipe :: MonadIO io => Pipe -> io ()
-runPipe = runPipeFromTo Inherit Inherit
-
--- | Read the result of running a pipeline. See @runPipe@
-readPipe :: MonadIO io => Pipe -> io String
-readPipe = runPipe' Inherit $ \case
-    Left cp -> readCreateProcessInputHandle cp
-    Right _ -> error "case"
 
 -- | A class for things that can be converted to arguments on the command
--- line.
+-- line. The default implementation is to use `show`.
 class ExecArg a where
     asArg :: a -> String
+    default asArg :: Show a => a -> String
+    asArg = show
 
 instance ExecArg String where
     asArg = id
 
-instance ExecArg Int where
-    asArg = show
-
-instance ExecArg Integer where
-    asArg = show
+instance ExecArg Int
+instance ExecArg Integer
+instance ExecArg Word
 
 -- | A class for building up a command
 class ExecArgs a where
     toArgs :: [String] -> a
 
-instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
-    toArgs f i = toArgs $ f ++ [asArg i]
-
-instance ExecArgs [String] where
-    toArgs = id
-
--- | Commands can be built into a pipe directly.
-instance ExecArgs Pipe where
-    toArgs (cmd:args) = P [Left $ proc cmd args]
-
 instance ExecArgs (Proc ()) where
     toArgs (cmd:args) = mkProc cmd args
 
--- | Allows you to sequence the @Pipe@ instances.
-instance Monad m => ExecArgs (CmdT m ()) where
-    toArgs = CmdT . liftF . liftCoyoneda . U . toArgs
-
-sub :: Cmd () -> Pipe
-sub c = P [Right c]
+instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
+    toArgs f i = toArgs $ f ++ [asArg i]
+-- 
+-- instance ExecArgs [String] where
+--     toArgs = id
 
 -- | Commands can be executed directly in IO (this goes via the @CmdT@ instance)
 instance ExecArgs (IO ()) where
-    toArgs = runCmd . toArgs
+    toArgs = runProc . toArgs
 
 -- | Force a `()` result.
 class Unit a
 instance {-# OVERLAPPING #-} Unit b => Unit (a -> b)
 instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
-instance {-# OVERLAPPABLE #-} Unit Pipe
--- instance {-# OVERLAPPABLE #-} Unit (Proc
+-- instance {-# OVERLAPPABLE #-} Unit Pipe
 
 -- | Get all files in a directory on your `$PATH`.
 --
@@ -359,3 +238,23 @@ createFailure cmd args i = throw $ Failure cmd args i
 data U f a where
     U :: f -> U f ()
 
+
+-- | Function that splits '\0' seperated list of strings.
+split0 :: String -> [String]
+split0 = endBy "\0"
+
+-- | A convinience function for reading in a @"\NUL"@ seperated list of
+-- strings. This is commonly used when dealing with paths.
+--
+-- ```
+-- readSplit0 $ find "-print0"
+-- ```
+readSplit0 :: Proc () -> IO [String]
+readSplit0 p = split0 <$> readProc p
+
+-- | A convinience function for reading the output lines of a @Proc@.
+readLines :: Proc () -> IO [String]
+readLines p = lines <$> readProc p
+
+readAuto :: Read a => Proc () -> IO a
+readAuto p = read <$> readProc p

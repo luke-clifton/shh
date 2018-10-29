@@ -20,17 +20,18 @@ main = do
     ls "-a"
 
     -- Pipe things to different processes
-    runPipe $ ls <> wc "-c"
+    ls |> wc "-c"
 
     -- Read the result of a command
-    print =<< length <$> readCmd ls
+    print =<< length <$> readProc ls
 
     -- Or read the result of a pipe
-    readPipe (env <> grep "^USER=") >>= putStr . map toUpper
+    readProc (env |> grep "^USER=") >>= putStr . map toUpper
 
     -- Read the result of a series of commands.
-    r <- readCmd $ do
-        u <- nub . words <$> readCmd users
+    r <- readProc $ do
+        u <- nub . words <$> readProc users
         forM_ u $ \user -> do
             finger user
-    putStrLn r
+
+    putStrLn (map toUpper r)
