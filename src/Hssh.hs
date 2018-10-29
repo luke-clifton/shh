@@ -69,30 +69,83 @@ class PipeResult f where
     -- used.
     (|>) :: Proc a -> Proc a -> f a
 
+    -- | Similar to @|!>@ except that it connects stderr to stdin of the
+    -- next process in the chain.
+    --
+    -- NB: The next command to be @|>@ on will recapture the stdout of
+    -- both preceding processes, because they are both going to the same
+    -- handle!
+    --                                            
+    -- This is probably not what you want, see the @&>@ and @&!>@ operators
+    -- for redirection.
+    (|!>) :: Proc a -> Proc a -> f a
+
+    -- Redirect StdOut of this process to another location
+    --
+    -- > ls &> Append "/dev/null"
+    (&>) :: Proc a -> Stream -> f a
+
+    -- Redirect StdErr of this process to another location
+    (&!>) :: Proc a -> Stream -> f a
+
 instance PipeResult IO where
     a |> b = runProc $ a |> b
+    a |!> b = runProc $ a |!> b
+    a &> s = runProc $ a &> s
+    a &!> s = runProc $ a &!> s
 
 instance PipeResult Proc where
     (|>) = (<>)
+    (PP a) |!> (PP b) = PP $ \i o e -> do
+        (r,w) <- createPipe
+        aw <- a i o w
+        bw <- b r o e
+        let
+            wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
+        pure wait
 
-newtype Proc a = PP (Handle -> Handle -> IO (IO a))
+    (PP f) &> StdIO = PP $ \i o e -> f i o e
+    (PP f) &> StdErr = PP $ \i o e -> f i e e
+    (PP f) &> (Truncate fp) = PP $ \i o e -> do
+        h <- openBinaryFile fp WriteMode
+        f i h e
+    (PP f) &> (Append fp) = PP $ \i o e -> do
+        h <- openBinaryFile fp AppendMode
+        f i h e
+
+    (PP f) &!> StdIO = PP $ \i o e -> f i o o
+    (PP f) &!> StdErr = PP $ \i o e -> f i o e
+    (PP f) &!> (Truncate fp) = PP $ \i o e -> do
+        h <- openBinaryFile fp WriteMode
+        f i o h
+    (PP f) &!> (Append fp) = PP $ \i o e -> do
+        h <- openBinaryFile fp AppendMode
+        f i o h
+
+redirect :: Proc a -> Proc a
+redirect (PP f) = PP $ \i o e -> f i o o
+
+data Stream = StdIO | StdErr | Truncate FilePath | Append FilePath
+
+
+newtype Proc a = PP (Handle -> Handle -> Handle -> IO (IO a))
     deriving Functor
 
 instance Applicative Proc where
-    pure a = PP $ \_ _ -> pure (pure a)
-    (PP f) <*> (PP a) = PP $ \i o -> do
-        f' <- join $ f i o
-        a' <- join $ a i o
+    pure a = PP $ \_ _ _ -> pure (pure a)
+    (PP f) <*> (PP a) = PP $ \i o e -> do
+        f' <- join $ f i o e
+        a' <- join $ a i o e
         pure $! (pure $! f' a')
 
 instance Monad Proc where
-    (PP a) >>= f = PP $ \i o -> do
-        a' <- join $ a i o
+    (PP a) >>= f = PP $ \i o e -> do
+        a' <- join $ a i o e
         let PP f' = f a'
-        f' i o
+        f' i o e
 
 instance MonadIO Proc where
-    liftIO io = PP $ \_ _ -> pure io
+    liftIO io = PP $ \_ _ _ -> pure io
 
 waitAndThrow :: String -> [String] -> ProcessHandle -> IO ()
 waitAndThrow cmd arg ph = waitForProcess ph >>= \case
@@ -107,30 +160,35 @@ waitAndThrow cmd arg ph = waitForProcess ph >>= \case
 -- you will be using the `IO` instance of semigroup which is a sequential
 -- execution. @|>@ prevents that error.
 instance Semigroup (Proc a) where
-    (PP a) <> (PP b) = PP $ \i o -> do
+    (PP a) <> (PP b) = PP $ \i o e -> do
         (r,w) <- createPipe
-        aw <- a i w
-        bw <- b r o
+        aw <- a i w e
+        bw <- b r o e
         let
             wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
         pure wait
 
 -- | Create a @Proc@ from a command and a list of arguments.
 mkProc :: String -> [String] -> Proc ()
-mkProc cmd args = PP $ \i o -> do
-    (_,so,_,ph) <- createProcess_ cmd (proc cmd args) {std_in = UseHandle i, std_out = UseHandle o, close_fds = True}
+mkProc cmd args = PP $ \i o e -> do
+    (_,_,_,ph) <- createProcess_ cmd (proc cmd args)
+        { std_in = UseHandle i
+        , std_out = UseHandle o
+        , std_err = UseHandle e
+        , close_fds = True
+        }
     pure $ void $! waitAndThrow cmd args ph
 
 -- | Run a @Proc@ in any @MonadIO@ (including other @Proc@s).
 runProc :: MonadIO io => Proc a -> io a
 runProc (PP f) = liftIO $ do
-    join $ f stdin stdout
+    join $ f stdin stdout stderr
 
 -- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
 readProc :: MonadIO io => Proc a -> io String
 readProc (PP f) = liftIO $ do
     (r,w) <- createPipe
-    wa <- f stdin w
+    wa <- f stdin w stderr
     output  <- hGetContents r
     a <- async $ (C.evaluate $ rnf output) *> pure output
     wa
