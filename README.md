@@ -36,6 +36,13 @@ Supports capturing the output of commands as a `String`
     loggedInUsers <- nub . words <$> readProc users
     putStrLn loggedInUsers
 
+### Lazy capture
+
+Read stdout in lazily.
+
+    withRead (cat "/dev/urandom" |> xxd) $ \ouput -> do
+    	mapM_ putStrLn $ take 10 $ lines $ output
+
 ## Redirection
 
     ls &> Append "result.txt"
