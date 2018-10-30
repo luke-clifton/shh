@@ -138,14 +138,14 @@ newtype Proc a = PP (Handle -> Handle -> Handle -> IO (IO a))
 
 instance Applicative Proc where
     pure a = PP $ \_ _ _ -> pure (pure a)
-    (PP f) <*> (PP a) = PP $ \i o e -> do
-        f' <- join $ f i o e
-        a' <- join $ a i o e
+    f <*> a = PP $ \i o e -> do
+        f' <- fst <$> runPP f i o e (pure ())
+        a' <- fst <$> runPP a i o e (pure ())
         pure $! (pure $! f' a')
 
 instance Monad Proc where
-    (PP a) >>= f = PP $ \i o e -> do
-        a' <- join $ a i o e
+    a >>= f = PP $ \i o e -> do
+        a' <- fst <$> runPP a i o e (pure ())
         let PP f' = f a'
         f' i o e
 
@@ -208,45 +208,66 @@ catchCode a = catchFailure a >>= \case
 
 -- | Run a @Proc@ in any @MonadIO@ (including other @Proc@s).
 runProc :: MonadIO io => Proc a -> io a
-runProc (PP f) = liftIO $ do
-    join $ f stdin stdout stderr
+runProc p = liftIO $ do
+    fst <$> runPP p stdin stdout stderr (pure ())
 
 -- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
 -- This is strict, so the whole output is read into a @String@. See @withRead@
 -- for a lazy version that can be used for streaming.
 readProc :: MonadIO io => Proc a -> io String
-readProc (PP f) = liftIO $ do
-    (r,w) <- createPipe
-    wa <- f stdin w stderr
-    hClose w
-    output  <- hGetContents r
-    a <- async $ (C.evaluate $ rnf output) *> pure output
-    finally (wa >> wait a) (hClose r)
+readProc p = liftIO $ do
+    bracket
+        createPipe
+        (\(r,w) -> finally (hClose r) (hClose w))
+        $ \(r,w) -> do
+            fmap snd $ runPP p stdin w stderr $ do
+                hClose w
+                output <- hGetContents r
+                C.evaluate $ rnf output
+                pure output
+
+
+
+-- runPP proc postLaunch postWait
+runPP :: Proc a -> Handle -> Handle -> Handle -> IO b -> IO (a, b)
+runPP (PP f) i o e postLaunch = do
+    mask $ \restore -> do
+        w <- f i o e
+        -- TODO: Is this OK? `w` could block, so does it need to be
+        -- restored'd? Do I need to split `w` into two IO actions, one
+        -- to wait, and one to kill? I'll rejig everything to use runPP
+        -- then I'll look into that.
+        r <- restore postLaunch `finally` w
+        a <- w
+        pure (a,r)
+
+
 
 -- | Run a process and capture it's output lazily. Once the continuation
 -- is completed, the handles are closed, and the process is terminated.
-withRead :: MonadIO io => Proc a -> (String -> io b) -> io b
-withRead (PP f) k = do
-    (wa,w,a,output,r) <- liftIO $ do
-        (r,w) <- createPipe
-        wa <- f stdin w stderr
-        hClose w
-        output <- hGetContents r
-        a <- async wa
-        pure (wa,w,a,output,r)
-    res <- k output
-    liftIO $ do
-        hClose r
-        wait a
-        pure res
+withRead :: MonadIO io => Proc a -> (String -> IO b) -> io b
+withRead p k = do
+    liftIO $
+        bracket
+            createPipe
+            (\(r,w) -> finally (hClose r) (hClose w))
+            $ \(r,w) -> do
+                snd <$> (runPP p stdin w stderr $ do
+                    hClose w
+                    out <- hGetContents r
+                    k out `finally` hClose r
+                    )
 
 writeProc :: MonadIO io => Proc a -> String -> io a
-writeProc (PP f) input = liftIO $ do
-    (r,w) <- createPipe
-    wa <- f r stdout stderr
-    hPutStr w input
-    hClose w
-    wa
+writeProc p input = liftIO $ do
+    bracket
+        createPipe
+        (\(r,w) -> hClose r `finally` hClose w)
+        (\(r,w) -> fst <$> (runPP p r stdout stderr $ do
+            hPutStr w input
+            hClose w
+            )
+        )
 
 readTrim :: MonadIO io => Proc a -> io String
 readTrim = fmap trim . readProc

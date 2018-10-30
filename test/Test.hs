@@ -54,4 +54,12 @@ unitTests = testGroup "Unit tests"
     , testCase "Terminate upstream processes" $ do
         Left x <- catchFailure (mkProc "false" [] |> yes "Terminate upstream process failed")
         x @?= Hssh.Failure "false" [] 1
+    , testCase "Write to process" $ do
+        t <- readTrim mktemp
+        writeProc (cat &> Truncate t) "Hello"
+        r <- readProc (cat t)
+        r @?= "Hello"
+        writeProc (cat &> Truncate t) "Goodbye"
+        r <- readProc (cat t)
+        r @?= "Goodbye"
     ]
