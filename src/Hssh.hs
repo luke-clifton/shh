@@ -185,6 +185,8 @@ runProc (PP f) = liftIO $ do
     join $ f stdin stdout stderr
 
 -- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
+-- This is strict, so the whole output is read into a @String@. See @withRead@
+-- for a lazy version that can be used for streaming.
 readProc :: MonadIO io => Proc a -> io String
 readProc (PP f) = liftIO $ do
     (r,w) <- createPipe
@@ -195,6 +197,8 @@ readProc (PP f) = liftIO $ do
     hClose w
     wait a
 
+-- | Run a process and capture it's output lazily. Once the continuation
+-- is completed, the handles are closed, and the process is terminated.
 withRead :: MonadIO io => Proc a -> (String -> io b) -> io b
 withRead (PP f) k = do
     (wa,w,a,output,r) <- liftIO $ do
@@ -217,6 +221,20 @@ writeProc (PP f) input = liftIO $ do
     hPutStr w input
     hClose w
     wa
+
+interact :: MonadIO io => Proc a -> (String -> String) -> io a
+interact (PP f) p = liftIO $ do
+    (ir,iw) <- createPipe
+    (or,ow) <- createPipe
+    wa <- f ir ow stderr
+    hClose ir
+    hClose ow
+    out <- hGetContents or
+    hPutStr iw (p out)
+    hClose iw
+    hClose or
+    wa
+
 
 (>>>) :: MonadIO io => String -> Proc a -> io a
 (>>>) = flip writeProc
