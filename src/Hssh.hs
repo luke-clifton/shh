@@ -97,34 +97,33 @@ instance PipeResult IO where
 instance PipeResult Proc where
     (|>) = (<>)
     (PP a) |!> (PP b) = PP $ \i o e -> do
-        (r,w) <- createPipe
-        aw <- a i o w
-        bw <- b r o e
-        let
-            wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
-        pure wait
+        bracket
+            createPipe
+            (\(r,w) -> finally (hClose r) (hClose w))
+            $ \(r,w) -> do
+                aw <- a i o w
+                bw <- b r o e
+                pure $ snd <$> concurrently aw bw
+
 
     (PP f) &> StdIO = PP $ \i o e -> f i o e
     (PP f) &> StdErr = PP $ \i o e -> f i e e
     (PP f) &> (Truncate fp) = PP $ \i o e -> do
-        h <- openBinaryFile fp WriteMode
-        w <- f i h e
-        pure (w <* hClose h)
+        withBinaryFile fp WriteMode $ \h -> do
+            f i h e
     (PP f) &> (Append fp) = PP $ \i o e -> do
-        h <- openBinaryFile fp AppendMode
-        w <- f i h e
-        pure (w <* hClose h)
+        withBinaryFile fp AppendMode $ \h -> do
+            f i h e
 
     (PP f) &!> StdIO = PP $ \i o e -> f i o o
     (PP f) &!> StdErr = PP $ \i o e -> f i o e
+
     (PP f) &!> (Truncate fp) = PP $ \i o e -> do
-        h <- openBinaryFile fp WriteMode
-        w <- f i o h
-        pure (w <* hClose h)
+        withBinaryFile fp WriteMode $ \h -> do
+            f i o h
     (PP f) &!> (Append fp) = PP $ \i o e -> do
-        h <- openBinaryFile fp AppendMode
-        w <- f i o h
-        pure (w <* hClose h)
+        withBinaryFile fp AppendMode $ \h -> do
+            f i o h
 
 redirect :: Proc a -> Proc a
 redirect (PP f) = PP $ \i o e -> f i o o
@@ -193,7 +192,7 @@ mkProc cmd args = PP $ \i o e -> do
     pure $ do
         onException
             (waitProc cmd args ph)
-            (putStrLn "XXXXXXXXXXXXXXX" >> terminateProcess ph)
+            (terminateProcess ph)
             >>= \case
                 Nothing -> pure ()
                 Just f -> throwIO f
@@ -219,10 +218,13 @@ readProc :: MonadIO io => Proc a -> io String
 readProc (PP f) = liftIO $ do
     (r,w) <- createPipe
     wa <- f stdin w stderr
+    hClose w
     output  <- hGetContents r
     a <- async $ (C.evaluate $ rnf output) *> pure output
-    finally wa (hClose w)
-    wait a
+    wa
+    res <- wait a
+    hClose r
+    pure res
 
 -- | Run a process and capture it's output lazily. Once the continuation
 -- is completed, the handles are closed, and the process is terminated.
