@@ -221,10 +221,7 @@ readProc (PP f) = liftIO $ do
     hClose w
     output  <- hGetContents r
     a <- async $ (C.evaluate $ rnf output) *> pure output
-    wa
-    res <- wait a
-    hClose r
-    pure res
+    finally (wa >> wait a) (hClose r)
 
 -- | Run a process and capture it's output lazily. Once the continuation
 -- is completed, the handles are closed, and the process is terminated.
