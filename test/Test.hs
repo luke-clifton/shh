@@ -15,7 +15,7 @@ tests = testGroup "Tests" [unitTests, properties]
 
 properties :: TestTree
 properties = testGroup "Properties"
-    [
+    [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
     ]
 
 unitTests :: TestTree
@@ -52,8 +52,8 @@ unitTests = testGroup "Unit tests"
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
-        Left x <- catchFailure (mkProc "false" [] |> yes "Terminate upstream process failed")
-        x @?= Hssh.Failure "false" [] 1
+        Left x <- catchFailure (mkProc "false" ["dummy"] |> yes "Terminate upstream process failed")
+        x @?= Hssh.Failure "false" ["dummy"] 1
     , testCase "Write to process" $ do
         t <- readTrim mktemp
         writeProc (cat &> Truncate t) "Hello"
