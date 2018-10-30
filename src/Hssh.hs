@@ -36,6 +36,12 @@ import Control.Concurrent
 import Control.DeepSeq (rnf)
 import Control.Concurrent.Async
 
+-- | This function needs to be called in order to use the library succesfully
+-- from GHCi.
+initInteractive :: IO ()
+initInteractive = do
+    hSetBuffering stdin LineBuffering
+
 -- | When a process exits with a non-zero exit code
 -- we throw this Failure exception.
 --

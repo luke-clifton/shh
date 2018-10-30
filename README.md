@@ -61,3 +61,9 @@ Haskell functions.
 
 TODO: Fill this in once on Hackage.
     
+## Usage in GHCi
+
+If you want `^D` to be recognised as a EOF marker (when running commands
+that read from stdin) when running in GHCi, you will need to run the
+`initInteractive` function. This sets the line buffering appropriatly and
+ensures the terminal is in canonical mode.
