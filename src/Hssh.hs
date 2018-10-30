@@ -108,19 +108,23 @@ instance PipeResult Proc where
     (PP f) &> StdErr = PP $ \i o e -> f i e e
     (PP f) &> (Truncate fp) = PP $ \i o e -> do
         h <- openBinaryFile fp WriteMode
-        f i h e
+        w <- f i h e
+        pure (w <* hClose h)
     (PP f) &> (Append fp) = PP $ \i o e -> do
         h <- openBinaryFile fp AppendMode
-        f i h e
+        w <- f i h e
+        pure (w <* hClose h)
 
     (PP f) &!> StdIO = PP $ \i o e -> f i o o
     (PP f) &!> StdErr = PP $ \i o e -> f i o e
     (PP f) &!> (Truncate fp) = PP $ \i o e -> do
         h <- openBinaryFile fp WriteMode
-        f i o h
+        w <- f i o h
+        pure (w <* hClose h)
     (PP f) &!> (Append fp) = PP $ \i o e -> do
         h <- openBinaryFile fp AppendMode
-        f i o h
+        w <- f i o h
+        pure (w <* hClose h)
 
 redirect :: Proc a -> Proc a
 redirect (PP f) = PP $ \i o e -> f i o o
@@ -167,6 +171,9 @@ instance Semigroup (Proc a) where
         let
             wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
         pure wait
+
+trim :: String -> String
+trim = dropWhileEnd isSpace . dropWhile isSpace
 
 -- | Create a @Proc@ from a command and a list of arguments.
 mkProc :: String -> [String] -> Proc ()
@@ -221,6 +228,9 @@ writeProc (PP f) input = liftIO $ do
     hPutStr w input
     hClose w
     wa
+
+readTrim :: MonadIO io => Proc a -> io String
+readTrim = fmap trim . readProc
 
 interact :: MonadIO io => Proc a -> (String -> String) -> io a
 interact (PP f) p = liftIO $ do
