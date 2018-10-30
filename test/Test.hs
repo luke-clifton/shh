@@ -48,4 +48,10 @@ unitTests = testGroup "Unit tests"
     , testCase "Lazy read" $ do
         withRead (cat "/dev/urandom" |> xxd) $ \s -> do
             take 10 s @?= "00000000: "
+    , testCase "Multiple outputs" $ do
+        l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
+        l @?= "1\n2\n"
+    , testCase "Terminate upstream processes" $ do
+        Left x <- catchFailure (mkProc "false" [] |> yes "Terminate upstream process failed")
+        x @?= Hssh.Failure "false" [] 1
     ]

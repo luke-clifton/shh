@@ -45,7 +45,7 @@ data Failure = Failure
     { prog :: String
     , args :: [String]
     , code :: Int
-    }
+    } deriving (Eq, Ord)
 
 instance Show Failure where
     show f = concat $
@@ -132,6 +132,8 @@ redirect (PP f) = PP $ \i o e -> f i o o
 data Stream = StdIO | StdErr | Truncate FilePath | Append FilePath
 
 
+-- It is very important that the returned IO action is actually run, in
+-- order to prevent leaked resources.
 newtype Proc a = PP (Handle -> Handle -> Handle -> IO (IO a))
     deriving Functor
 
@@ -151,12 +153,12 @@ instance Monad Proc where
 instance MonadIO Proc where
     liftIO io = PP $ \_ _ _ -> pure io
 
-waitAndThrow :: String -> [String] -> ProcessHandle -> IO ()
-waitAndThrow cmd arg ph = waitForProcess ph >>= \case
+waitProc :: String -> [String] -> ProcessHandle -> IO (Maybe Failure)
+waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
-        | fromIntegral c == negate sigPIPE -> return ()
-        | otherwise -> createFailure cmd arg c
-    ExitSuccess -> pure ()
+        | fromIntegral c == negate sigPIPE -> pure Nothing
+        | otherwise -> pure $ Just $ createFailure cmd arg c
+    ExitSuccess -> pure Nothing
 
 -- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
 -- into the stdin of the next. However, consider using `|>` instead which
@@ -165,12 +167,13 @@ waitAndThrow cmd arg ph = waitForProcess ph >>= \case
 -- execution. @|>@ prevents that error.
 instance Semigroup (Proc a) where
     (PP a) <> (PP b) = PP $ \i o e -> do
-        (r,w) <- createPipe
-        aw <- a i w e
-        bw <- b r o e
-        let
-            wait = snd <$> concurrently (aw >> hClose w) (bw <* hClose r)
-        pure wait
+        bracket
+            createPipe
+            (\(r,w) -> finally (hClose r) (hClose w))
+            $ \(r,w) -> do
+                aw <- a i w e
+                bw <- b r o e
+                pure $ snd <$> concurrently aw bw
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
@@ -184,7 +187,25 @@ mkProc cmd args = PP $ \i o e -> do
         , std_err = UseHandle e
         , close_fds = True
         }
-    pure $ void $! waitAndThrow cmd args ph
+    -- TODO:
+    -- If an exception is received while waiting, we should terminate the process
+    -- somehow. (we could be getting async exceptions, and we need to clean up).
+    pure $ do
+        onException
+            (waitProc cmd args ph)
+            (putStrLn "XXXXXXXXXXXXXXX" >> terminateProcess ph)
+            >>= \case
+                Nothing -> pure ()
+                Just f -> throwIO f
+    
+
+catchFailure :: IO a -> IO (Either Failure a)
+catchFailure = try
+
+catchCode :: IO a -> IO Int
+catchCode a = catchFailure a >>= \case
+    Right _ -> pure 0
+    Left f  -> pure $ code f
 
 -- | Run a @Proc@ in any @MonadIO@ (including other @Proc@s).
 runProc :: MonadIO io => Proc a -> io a
@@ -200,8 +221,7 @@ readProc (PP f) = liftIO $ do
     wa <- f stdin w stderr
     output  <- hGetContents r
     a <- async $ (C.evaluate $ rnf output) *> pure output
-    wa
-    hClose w
+    finally wa (hClose w)
     wait a
 
 -- | Run a process and capture it's output lazily. Once the continuation
@@ -211,12 +231,12 @@ withRead (PP f) k = do
     (wa,w,a,output,r) <- liftIO $ do
         (r,w) <- createPipe
         wa <- f stdin w stderr
+        hClose w
         output <- hGetContents r
         a <- async wa
         pure (wa,w,a,output,r)
     res <- k output
     liftIO $ do
-        hClose w
         hClose r
         wait a
         pure res
@@ -345,8 +365,8 @@ createProcessToFailure CreateProcess{cmdspec=s} i =
         ShellCommand{} -> error "We don't handle shell commands"
         RawCommand f a -> throw $ Failure f a i
 
-createFailure :: String -> [String] -> Int -> IO a
-createFailure cmd args i = throw $ Failure cmd args i
+createFailure :: String -> [String] -> Int -> Failure
+createFailure cmd args i = Failure cmd args i
 
 -- TODO: Does this exist anywhere?
 -- | Helper type for building a monad.
