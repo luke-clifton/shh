@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 module Main where
 
 import Hssh
@@ -8,7 +9,14 @@ import Test.Tasty.QuickCheck
 
 $(loadEnv)
 
-main = defaultMain tests
+main = do
+    putStrLn "################################################"
+    putStrLn " These tests require that certain binaries"
+    putStrLn " exist on your $PATH. If you are getting"
+    putStrLn " failures, please check that it's not because"
+    putStrLn " they are missing."
+    putStrLn "################################################"
+    defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests" [unitTests, properties]
@@ -24,7 +32,7 @@ unitTests = testGroup "Unit tests"
         l <- readProc $ echo "test"
         l @?= "test\n"
     , testCase "Redirect to /dev/null" $ do
-        l <- readProc $ echo "test" &> Append "/dev/null"
+        l <- readProc $ echo "test" &> devNull
         l @?= ""
     , testCase "Redirect to file (Truncate)" $ do
         t <- trim <$> readProc mktemp
@@ -52,7 +60,7 @@ unitTests = testGroup "Unit tests"
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
-        Left x <- catchFailure (mkProc "false" ["dummy"] |> yes "Terminate upstream process failed")
+        Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
         x @?= Hssh.Failure "false" ["dummy"] 1
     , testCase "Write to process" $ do
         t <- readTrim mktemp
@@ -62,4 +70,7 @@ unitTests = testGroup "Unit tests"
         writeProc (cat &> Truncate t) "Goodbye"
         r <- readProc (cat t)
         r @?= "Goodbye"
+    , testCase "mapP" $ do
+        r <- mapP shasum "test"
+        r @?= "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3  -\n"
     ]

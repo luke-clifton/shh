@@ -337,9 +337,6 @@ instance ExecArgs (Proc ()) where
 
 instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
     toArgs f i = toArgs $ f ++ asArg i
--- 
--- instance ExecArgs [String] where
---     toArgs = id
 
 -- | Commands can be executed directly in IO
 instance ExecArgs (IO ()) where
