@@ -8,33 +8,21 @@
 {-# LANGUAGE GADTs #-}
 module Hssh where
 
-import System.IO.Unsafe
-
-import System.Exit
-import System.Posix.Signals
-import System.IO.Error
-import GHC.IO.Exception
-import Foreign.C
-import Control.Monad.Trans.Free
-import Data.Functor.Coyoneda
-import System.IO
-import System.Process
-import Control.Monad.Writer
-import Data.List
-import Data.List.Split
-import Data.Char
-import Control.Monad
-import Control.Monad.Cont
-import Control.Monad.Reader
-import Control.Monad.State
-import System.Directory
-import Language.Haskell.TH
-import System.Environment
-import Control.Exception as C
-import Control.Concurrent.MVar
-import Control.Concurrent
-import Control.DeepSeq (rnf)
 import Control.Concurrent.Async
+import Control.DeepSeq (rnf)
+import Control.Exception as C
+import Control.Monad
+import Control.Monad.IO.Class
+import Data.Char (isLower, isSpace)
+import Data.List (nub, dropWhileEnd, intercalate)
+import Data.List.Split (endBy, splitOn)
+import Language.Haskell.TH
+import System.Directory (doesDirectoryExist, getDirectoryContents)
+import System.Environment (getEnv)
+import System.Exit (ExitCode(..))
+import System.IO
+import System.Posix.Signals
+import System.Process
 
 -- | This function needs to be called in order to use the library succesfully
 -- from GHCi.
