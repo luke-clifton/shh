@@ -1,8 +1,39 @@
 # Hssh
 
-A template Haskell hack to create Haskell functions from every executable on
-your `$PATH` environment variable. Makes using GHCi as a shell really quite
-nice.
+Hssh is a library to enable convinient shell-like programming in Haskell.
+It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
+
+It supports
+
+ * Redirction of stdout and stderr
+       
+    λ echo "Hello" &> StdErr
+    λ echo "Hello" &> Truncate ".tmp_file"
+    λ echo "Hello" &!> Append "/dev/null"
+
+ * Piping stdout or stderr to the input of a chained process
+       
+    λ cat "/dev/urandom" |> xxd |> head "-n" 5
+
+ * Multiple processes sequentially feeding a single process
+
+    λ (echo 1 >> echo 2) |> cat
+
+ * Use of Haskells concurrency primitives.
+
+    λ race (sleep 1) $ curl "http://this_needs_to_timeout_after_1_second"
+
+    λ d <- readTrim $ mktemp "-d"
+    λ :{
+    | System.Directory.withCurrentDirectory d $ do
+    |   mapConcurrently_ (curl "-LOJs")
+    |     [ "https://raw.githubusercontent.com/luke-clifton/hssh/master/shell.nix"
+    |     , "https://raw.githubusercontent.com/luke-clifton/hssh/master/hssh.cabal"
+    |     ]
+    |   ls
+    | :}
+    hssh.cabal  shell.nix
+
 
 ## Mnemonics 
 
