@@ -103,61 +103,60 @@ instance PipeResult IO where
     a &> s = runProc $ a &> s
     a &!> s = runProc $ a &!> s
 
+withPipe :: (Handle -> Handle -> IO a) -> IO a
+withPipe k =
+    bracket
+        createPipe
+        (\(r,w) -> hClose r `finally` hClose w)
+        (\(r,w) -> k r w)
+
 instance PipeResult Proc where
-    (|>) = (<>)
-    (PP a) |!> (PP b) = PP $ \i o e -> do
-        (r,w) <- createPipe
-        let
-            run = do
-                aw <- a i o w
-                bw <- b r o e
-                pure $ snd <$> concurrently aw bw
-        run `onException` (hClose r `finally` hClose w)
+    (Proc a) |> (Proc b) = Proc $ \i o e pl pw ->
+        withPipe $ \r w -> do
+            a' <- async $ a i w e (pure ()) (hClose w)
+            b' <- async $ b r o e (pure ()) (hClose r)
+            link2 a' b'
+            (_, br) <- (pl >> waitBoth a' b') `finally` pw
+            pure br
 
+    (Proc a) |!> (Proc b) = Proc $ \i o e pl pw -> do
+        withPipe $ \r w -> do
+            a' <- async $ a i o w (pure ()) (hClose w)
+            b' <- async $ b r o e (pure ()) (hClose r)
+            link2 a' b'
+            (_, br) <- (pl >> waitBoth a' b') `finally` pw
+            pure br
 
-    (PP f) &> StdIO = PP $ \i o e -> f i o e
-    (PP f) &> StdErr = PP $ \i o e -> f i e e
-    (PP f) &> (Truncate fp) = PP $ \i o e -> do
-        withBinaryFile fp WriteMode $ \h -> do
-            f i h e
-    (PP f) &> (Append fp) = PP $ \i o e -> do
-        withBinaryFile fp AppendMode $ \h -> do
-            f i h e
+    p &> StdOut = p
+    (Proc f) &> StdErr = Proc $ \i o e pl pw -> f i e e pl pw
+    (Proc f) &> (Truncate path) = Proc $ \i o e pl pw ->
+        withBinaryFile path WriteMode $ \h -> f i h e pl pw
+    (Proc f) &> (Append path) = Proc $ \i o e pl pw ->
+        withBinaryFile path AppendMode $ \h -> f i h e pl pw
 
-    (PP f) &!> StdIO = PP $ \i o e -> f i o o
-    (PP f) &!> StdErr = PP $ \i o e -> f i o e
+    p &!> StdErr = p
+    (Proc f) &!> StdOut = Proc $ \i o e pl pw -> f i o o pl pw
+    (Proc f) &!> (Truncate path) = Proc $ \i o e pl pw ->
+        withBinaryFile path WriteMode $ \h -> f i o h pl pw
+    (Proc f) &!> (Append path) = Proc $ \i o e pl pw ->
+        withBinaryFile path AppendMode $ \h -> f i o h pl pw
+    
 
-    (PP f) &!> (Truncate fp) = PP $ \i o e -> do
-        withBinaryFile fp WriteMode $ \h -> do
-            f i o h
-    (PP f) &!> (Append fp) = PP $ \i o e -> do
-        withBinaryFile fp AppendMode $ \h -> do
-            f i o h
+data Stream = StdOut | StdErr | Truncate FilePath | Append FilePath
 
-redirect :: Proc a -> Proc a
-redirect (PP f) = PP $ \i o e -> f i o o
-
-data Stream = StdIO | StdErr | Truncate FilePath | Append FilePath
-
-
--- It is very important that the returned IO action is actually run, in
--- order to prevent leaked resources.
-newtype Proc a = PP (Handle -> Handle -> Handle -> IO (IO a))
+newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
     deriving Functor
 
-newtype PrXX a = PrXX (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
-    deriving Functor
+-- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
+-- into the stdin of the next. However, consider using `|>` instead which
+-- behaves when used in an @IO@ context. If you use `<>` in an IO monad
+-- you will be using the `IO` instance of semigroup which is a sequential
+-- execution. @|>@ prevents that error.
+instance Semigroup (Proc a) where
+    (<>) = (|>)
 
-instance Semigroup (PrXX a) where
-    (PrXX a) <> (PrXX b) = PrXX $ \i o e pl pw -> do
-        (r,w) <- createPipe
-        a' <- async $ a i w e (pure ()) (hClose w)
-        b' <- async $ b r o e (pure ()) (hClose r)
-        (_, br) <- (pl >> waitBoth a' b') `finally` pw
-        pure br
-
-instance Applicative PrXX where
-    pure a = PrXX $ \_ _ _ pw pl -> do
+instance Applicative Proc where
+    pure a = Proc $ \_ _ _ pw pl -> do
         pw `finally` pl
         pure a
 
@@ -167,33 +166,37 @@ instance Applicative PrXX where
         pure (f' a')
         
 
-instance Monad PrXX where
-    (PrXX a) >>= f = PrXX $ \i o e pl pw -> do
+instance Monad Proc where
+    (Proc a) >>= f = Proc $ \i o e pl pw -> do
         ar <- a i o e pl (pure ())
         let
-            PrXX f' = f ar
+            Proc f' = f ar
         f' i o e (pure ()) pw
 
-runPrXX :: PrXX a -> IO a
-runPrXX (PrXX f) = f stdin stdout stderr (pure ()) (pure ())
+runProc :: Proc a -> IO a
+runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())
 
-mkPrXX :: String -> [String] -> PrXX ()
-mkPrXX cmd args = PrXX $ \i o e pl pw -> do
-    (_,_,_,ph) <- createProcess_ cmd (proc cmd args)
-        { std_in = UseHandle i
-        , std_out = UseHandle o
-        , std_err = UseHandle e
-        , close_fds = True
-        }
-    pl
-    res <- (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
-    case res of
-        Nothing -> pure ()
-        Just f  -> throwIO f
+mkProc :: String -> [String] -> Proc ()
+mkProc cmd args = Proc $ \i o e pl pw -> do
+    bracket
+        (createProcess_ cmd (proc cmd args)
+            { std_in = UseHandle i
+            , std_out = UseHandle o
+            , std_err = UseHandle e
+            , close_fds = True
+            }
+        )
+        (\(_,_,_,ph) -> terminateProcess ph)
+        $ \(_,_,_,ph) -> do
+            pl
+            (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
 
 
-readPrXX :: MonadIO io => PrXX a -> io String
-readPrXX (PrXX f) = liftIO $ do
+-- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
+-- This is strict, so the whole output is read into a @String@. See @withRead@
+-- for a lazy version that can be used for streaming.
+readProc :: MonadIO io => Proc a -> io String
+readProc (Proc f) = liftIO $ do
     (r,w) <- createPipe
     (_,o) <- concurrently
         (f stdin w stderr (pure ()) (hClose w))
@@ -205,8 +208,17 @@ readPrXX (PrXX f) = liftIO $ do
         )
     pure o
 
-readWritePrXX :: MonadIO io => PrXX a -> String -> io String
-readWritePrXX (PrXX f) input = liftIO $ do
+-- | Run a process and capture it's output lazily. Once the continuation
+-- is completed, the handles are closed, and the process is terminated.
+withRead :: MonadIO io => Proc a -> (String -> IO b) -> io b
+withRead (Proc f) k = liftIO $ 
+    withPipe $ \r w -> do
+        withAsync (f stdin w stderr (pure ()) (hClose w)) $ \_ ->
+            (hGetContents r >>= k) `finally` hClose r
+
+
+readWriteProc :: MonadIO io => Proc a -> String -> io String
+readWriteProc (Proc f) input = liftIO $ do
     (ri,wi) <- createPipe
     (ro,wo) <- createPipe
     (_,o) <- concurrently
@@ -221,81 +233,22 @@ readWritePrXX (PrXX f) input = liftIO $ do
         )
     pure o
 
-writePrXX :: MonadIO io => PrXX a -> String -> io a
-writePrXX (PrXX f) input = liftIO $ do
+writeProc :: MonadIO io => Proc a -> String -> io a
+writeProc (Proc f) input = liftIO $ do
     (r,w) <- createPipe
     fst <$> concurrently
         (f r stdout stderr (pure ()) (hClose r))
         (hPutStr w input `finally` hClose w)
 
-
-instance Applicative Proc where
-    pure a = PP $ \_ _ _ -> pure (pure a)
-    (PP f) <*> (PP a) = PP $ \i o e -> do
-        f' <- f i o e
-        pure $ do
-            f'' <- f'
-            print "Done f'"
-            a'' <- join $ a i o e
-            print "Done a'"
-            pure $ f'' a''
-            
-
--- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
--- into the stdin of the next. However, consider using `|>` instead which
--- behaves when used in an @IO@ context. If you use `<>` in an IO monad
--- you will be using the `IO` instance of semigroup which is a sequential
--- execution. @|>@ prevents that error.
-instance Semigroup (Proc a) where
-    a <> b = PP $ \i o e -> do
-        (r,w) <- createPipe
-        let
-            run = do
-                fst <$> (runPP a i w e $ do
-                    runPP b r o e (pure ())
-                    )
-        pure $ run `finally` (hClose r `finally` hClose w)
-
-
-instance Monad Proc where
-    a >>= f = PP $ \i o e -> do
-        a' <- fst <$> runPP a i o e (pure ())
-        let PP f' = f a'
-        f' i o e
-
-instance MonadIO Proc where
-    liftIO io = PP $ \_ _ _ -> pure io
-
-waitProc :: String -> [String] -> ProcessHandle -> IO (Maybe Failure)
+waitProc :: String -> [String] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
-        | fromIntegral c == negate sigPIPE -> pure Nothing
-        | otherwise -> pure $ Just $ createFailure cmd arg c
-    ExitSuccess -> pure Nothing
+        | fromIntegral c == negate sigPIPE -> pure ()
+        | otherwise -> throwIO $ createFailure cmd arg c
+    ExitSuccess -> pure ()
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
-
--- | Create a @Proc@ from a command and a list of arguments.
-mkProc :: String -> [String] -> Proc ()
-mkProc cmd args = PP $ \i o e -> do
-    (_,_,_,ph) <- createProcess_ cmd (proc cmd args)
-        { std_in = UseHandle i
-        , std_out = UseHandle o
-        , std_err = UseHandle e
-        , close_fds = True
-        }
-    -- TODO:
-    -- If an exception is received while waiting, we should terminate the process
-    -- somehow. (we could be getting async exceptions, and we need to clean up).
-    pure $ do
-        onException
-            (waitProc cmd args ph)
-            (terminateProcess ph)
-            >>= \case
-                Nothing -> pure ()
-                Just f -> throwIO f
-    
 
 catchFailure :: IO a -> IO (Either Failure a)
 catchFailure = try
@@ -305,84 +258,9 @@ catchCode a = catchFailure a >>= \case
     Right _ -> pure 0
     Left f  -> pure $ code f
 
--- | Run a @Proc@ in any @MonadIO@ (including other @Proc@s).
-runProc :: MonadIO io => Proc a -> io a
-runProc p = liftIO $ do
-    fst <$> runPP p stdin stdout stderr (pure ())
-
--- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
--- This is strict, so the whole output is read into a @String@. See @withRead@
--- for a lazy version that can be used for streaming.
-readProc :: MonadIO io => Proc a -> io String
-readProc p = liftIO $ do
-    bracket
-        createPipe
-        (\(r,w) -> finally (hClose r) (hClose w))
-        $ \(r,w) -> do
-            fmap snd $ runPP p stdin w stderr $ do
-                hClose w
-                output <- hGetContents r
-                C.evaluate $ rnf output
-                pure output
-
-
-
--- runPP proc postLaunch postWait
-runPP :: Proc a -> Handle -> Handle -> Handle -> IO b -> IO (a, b)
-runPP (PP f) i o e postLaunch = do
-    mask $ \restore -> do
-        w <- f i o e
-        -- TODO: Is this OK? `w` could block, so does it need to be
-        -- restored'd? Do I need to split `w` into two IO actions, one
-        -- to wait, and one to kill? I'll rejig everything to use runPP
-        -- then I'll look into that.
-        r <- restore postLaunch `finally` w
-        a <- w
-        pure (a,r)
-
-
-
--- | Run a process and capture it's output lazily. Once the continuation
--- is completed, the handles are closed, and the process is terminated.
-withRead :: MonadIO io => Proc a -> (String -> IO b) -> io b
-withRead p k = do
-    liftIO $
-        bracket
-            createPipe
-            (\(r,w) -> finally (hClose r) (hClose w))
-            $ \(r,w) -> do
-                snd <$> (runPP p stdin w stderr $ do
-                    hClose w
-                    out <- hGetContents r
-                    k out `finally` hClose r
-                    )
-
-writeProc :: MonadIO io => Proc a -> String -> io a
-writeProc p input = liftIO $ do
-    bracket
-        createPipe
-        (\(r,w) -> hClose r `finally` hClose w)
-        (\(r,w) -> fst <$> (runPP p r stdout stderr $ do
-            hPutStr w input
-            hClose w
-            )
-        )
 
 readTrim :: MonadIO io => Proc a -> io String
 readTrim = fmap trim . readProc
-
-interact :: MonadIO io => Proc a -> (String -> String) -> io a
-interact (PP f) p = liftIO $ do
-    (ir,iw) <- createPipe
-    (or,ow) <- createPipe
-    wa <- f ir ow stderr
-    hClose ir
-    hClose ow
-    out <- hGetContents or
-    hPutStr iw (p out)
-    hClose iw
-    hClose or
-    wa
 
 
 (>>>) :: MonadIO io => String -> Proc a -> io a
@@ -409,8 +287,8 @@ instance ExecArg Word
 class ExecArgs a where
     toArgs :: [String] -> a
 
-instance ExecArgs (PrXX ()) where
-    toArgs (cmd:args) = mkPrXX cmd args
+instance ExecArgs (Proc ()) where
+    toArgs (cmd:args) = mkProc cmd args
 
 instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
     toArgs f i = toArgs $ f ++ [asArg i]
@@ -420,7 +298,7 @@ instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
 
 -- | Commands can be executed directly in IO (this goes via the @CmdT@ instance)
 instance ExecArgs (IO ()) where
-    toArgs = runPrXX . toArgs
+    toArgs = runProc . toArgs
 
 -- | Force a `()` result.
 class Unit a
@@ -458,31 +336,6 @@ loadEnv :: Q [Dec]
 loadEnv = do
     bins <- runIO pathBins
     fmap join $ mapM loadExe bins
-
-readCreateProcessInputHandle :: CreateProcess -> StdStream -> IO String
-readCreateProcessInputHandle cp input = do
-    let 
-        cp_opts = cp
-            { std_in  = input
-            , std_out = CreatePipe
-            }
-    (ex, output) <- withCreateProcess cp_opts $
-      \_ (Just outh) _ ph -> do
-
-        output  <- hGetContents outh
-        C.evaluate $ rnf output
-        ex <- waitForProcess ph
-        return (ex, output)
-
-    case ex of
-     ExitSuccess   -> return output
-     ExitFailure r -> createProcessToFailure cp_opts r
-
-createProcessToFailure :: CreateProcess -> Int -> IO a
-createProcessToFailure CreateProcess{cmdspec=s} i =
-    case s of
-        ShellCommand{} -> error "We don't handle shell commands"
-        RawCommand f a -> throw $ Failure f a i
 
 createFailure :: String -> [String] -> Int -> Failure
 createFailure cmd args i = Failure cmd args i
