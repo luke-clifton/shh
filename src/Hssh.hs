@@ -36,19 +36,19 @@ initInteractive = do
 -- The only exception to this is when a process is terminated
 -- by SIGPIPE in a pipeline, in which case we ignore it.
 data Failure = Failure
-    { prog :: String
-    , args :: [String]
-    , code :: Int
+    { failureProg :: String
+    , failureArgs :: [String]
+    , failureCode :: Int
     } deriving (Eq, Ord)
 
 instance Show Failure where
     show f = concat $
         [ "Command `"
         ]
-        ++ [intercalate " " (prog f : map show (args f))]
+        ++ [intercalate " " (failureProg f : map show (failureArgs f))]
         ++
         [ "` failed [exit "
-        , show (code f)
+        , show (failureCode f)
         , "]"
         ]
 
@@ -123,17 +123,17 @@ instance PipeResult Proc where
             pure br
 
     p &> StdOut = p
-    (Proc f) &> StdErr = Proc $ \i o e pl pw -> f i e e pl pw
-    (Proc f) &> (Truncate path) = Proc $ \i o e pl pw ->
+    (Proc f) &> StdErr = Proc $ \i _ e pl pw -> f i e e pl pw
+    (Proc f) &> (Truncate path) = Proc $ \i _ e pl pw ->
         withBinaryFile path WriteMode $ \h -> f i h e pl pw
-    (Proc f) &> (Append path) = Proc $ \i o e pl pw ->
+    (Proc f) &> (Append path) = Proc $ \i _ e pl pw ->
         withBinaryFile path AppendMode $ \h -> f i h e pl pw
 
     p &!> StdErr = p
-    (Proc f) &!> StdOut = Proc $ \i o e pl pw -> f i o o pl pw
-    (Proc f) &!> (Truncate path) = Proc $ \i o e pl pw ->
+    (Proc f) &!> StdOut = Proc $ \i o _ pl pw -> f i o o pl pw
+    (Proc f) &!> (Truncate path) = Proc $ \i o _ pl pw ->
         withBinaryFile path WriteMode $ \h -> f i o h pl pw
-    (Proc f) &!> (Append path) = Proc $ \i o e pl pw ->
+    (Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
         withBinaryFile path AppendMode $ \h -> f i o h pl pw
     
 
@@ -291,7 +291,7 @@ catchFailure = try
 catchCode :: IO a -> IO Int
 catchCode a = catchFailure a >>= \case
     Right _ -> pure 0
-    Left f  -> pure $ code f
+    Left f  -> pure $ failureCode f
 
 -- | Like `readProc`, but trim leading and tailing whitespace.
 readTrim :: MonadIO io => Proc a -> io String
@@ -322,6 +322,7 @@ class ExecArgs a where
 
 instance ExecArgs (Proc ()) where
     toArgs (cmd:args) = mkProc cmd args
+    toArgs _ = error "The impossible happened. How did you construct this?"
 
 instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
     toArgs f i = toArgs $ f ++ asArg i
@@ -334,15 +335,14 @@ instance ExecArgs (IO ()) where
 class Unit a
 instance {-# OVERLAPPING #-} Unit b => Unit (a -> b)
 instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
--- instance {-# OVERLAPPABLE #-} Unit Pipe
 
 -- | Get all files in a directory on your `$PATH`.
 --
 -- TODO: Check for executability.
 pathBins :: IO [FilePath]
 pathBins = do
-    paths <- splitOn ":" <$> getEnv "PATH"
-    paths <- filterM doesDirectoryExist paths
+    pathsVar <- splitOn ":" <$> getEnv "PATH"
+    paths <- filterM doesDirectoryExist pathsVar
     bins <- nub . concat <$> mapM getDirectoryContents paths
     return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do", "in", "let", "type"])
 
@@ -350,12 +350,12 @@ pathBins = do
 loadExe :: String -> Q [Dec]
 loadExe exe =
     let
-        impl = valD (varP (mkName exe)) (normalB [|
+        name = mkName exe
+        impl = valD (varP name) (normalB [|
             toArgs [] exe 
             |]) []
-        name = mkName exe
         typn = mkName "a"
-        typ = SigD (mkName exe) (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
+        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
     in do
         i <- impl
         return $ [typ,i]
