@@ -5,6 +5,9 @@ It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 
 It supports
 
+ * Automatically defining a function for each executable on your `$PATH`
+   using template Haskell.
+
  * Redirction of stdout and stderr
        
        -- Redirect stdout
