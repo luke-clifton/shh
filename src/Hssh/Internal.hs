@@ -168,6 +168,9 @@ instance MonadIO Proc where
 instance Semigroup (Proc a) where
     (<>) = (|>)
 
+instance (a ~ ()) => Monoid (Proc a) where
+    mempty = Proc $ \_ _ _ pl pw -> pl `finally` pw
+
 instance Applicative Proc where
     pure a = Proc $ \_ _ _ pw pl -> do
         pw `finally` pl
