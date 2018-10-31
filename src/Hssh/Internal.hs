@@ -386,6 +386,7 @@ loadExe :: String -> Q [Dec]
 loadExe executable =
     -- TODO: Can we place haddock markup in TH generated functions.
     -- TODO: Can we palce the man page for each function in there xD
+    -- https://ghc.haskell.org/trac/ghc/ticket/5467
     let
         name = mkName executable
         impl = valD (varP name) (normalB [|
