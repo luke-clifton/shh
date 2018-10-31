@@ -66,6 +66,10 @@ instance Show Failure where
 
 instance Exception Failure
 
+-- | This class is used to allow most of the operators in Hssh to be
+-- polymorphic in their return value. This makes using them in an @IO@
+-- context easier (we can avoid having to prepend everything with a
+-- @runProc@).
 class PipeResult f where
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
@@ -142,10 +146,17 @@ instance PipeResult Proc where
         withBinaryFile path AppendMode $ \h -> f i o h pl pw
     
 
+-- | Type used to represent destinations for redirects. @Truncate file@
+-- is like `> file` in a shell, and @Append file@ is like `>> file`.
 data Stream = StdOut | StdErr | Truncate FilePath | Append FilePath
 
+-- | Type representing a series or pipeline (or both) of shell commands.
 newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
     deriving Functor
+
+instance MonadIO Proc where
+    liftIO a = Proc $ \_ _ _ pl pw -> do
+        (pl >> a) `finally` pw
 
 -- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
 -- into the stdin of the next. However, consider using `|>` instead which
