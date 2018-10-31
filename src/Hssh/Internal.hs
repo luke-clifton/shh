@@ -366,13 +366,21 @@ pathBins = do
     bins <- nub . concat <$> mapM getDirectoryContents paths
     return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do", "in", "let", "type"])
 
+-- | Execute the given command. Further arguments can be passed in.
+--
+-- > exe "ls" "-l"
+--
+-- See also `loadExe` and `loadEnv`.
+exe :: (Unit a, ExecArgs a) => String -> a
+exe s = toArgs [s]
+
 -- | Create a function for the executable named
 loadExe :: String -> Q [Dec]
-loadExe exe =
+loadExe executable =
     let
-        name = mkName exe
+        name = mkName executable
         impl = valD (varP name) (normalB [|
-            toArgs [] exe 
+            toArgs [] executable
             |]) []
         typn = mkName "a"
         typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))

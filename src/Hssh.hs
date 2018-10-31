@@ -12,6 +12,7 @@ module Hssh
     -- | == Constructing a `Proc`
     -- You will rarely have to use these as most of the time these are
     -- created for you by using the `loadEnv` template Haskell function.
+    , exe
     , mkProc
     , runProc
     , Proc()
