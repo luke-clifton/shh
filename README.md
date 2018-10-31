@@ -34,6 +34,18 @@ It supports
        | :}
        hssh.cabal  shell.nix
 
+ * Capturing of process output
+
+       λ loggedIn <- nub . words <$> readProc users
+       λ putStrLn $ "Logged in users: " ++ show loggedIn
+
+ * Capturing infinite output of a process lazily
+
+       λ withRead (cat "/dev/urandom" |> xxd) $ mapM_ putStrLn . take 3 . lines
+       00000000: 8fcb ebee 9228 a897 3bfc 1d05 491d aceb  .....(..;...I...
+       00000010: 47de 3ea3 2788 44ac 9b85 0a0f a458 b949  G.>.'.D......X.I
+       00000020: 5308 ddfe 5790 5a5f 39e3 bbb6 b689 2b03  S...W.Z_9.....+.
+
 
 ## Mnemonics 
 
@@ -54,30 +66,6 @@ So, for example,
     ls &!> StdOut  Redirect stderr of `ls` to wherever stdout is going.
     StdOut <!& ls  Same as above
 
-## Piping
-
-Supports shell like piping.
-
-    cat "/dev/urandom" |> xxd |> head
-
-## Output capture
-
-Supports capturing the output of commands as a `String`
-
-    loggedInUsers <- nub . words <$> readProc users
-    putStrLn loggedInUsers
-
-### Lazy capture
-
-Read stdout in lazily.
-
-    withRead (cat "/dev/urandom" |> xxd) $ \ouput -> do
-    	mapM_ putStrLn $ take 10 $ lines $ output
-
-## Redirection
-
-    ls &> Append "result.txt"
-
 ## Usage
 
 Enable Temlpate Haskell and load the environment
@@ -88,13 +76,14 @@ Enable Temlpate Haskell and load the environment
 You now have all your executables available as simple to read
 Haskell functions.
 
+### Usage in GHCi
+
+If you want `^D` to be recognised as a EOF marker (when running commands
+that read from stdin) when running in GHCi, you will need to run the
+`initInteractive` function. This sets the line buffering appropriately and
+ensures the terminal is in canonical mode.
+
 ### Script Usage
 
 TODO: Fill this in once on Hackage.
     
-## Usage in GHCi
-
-If you want `^D` to be recognised as a EOF marker (when running commands
-that read from stdin) when running in GHCi, you will need to run the
-`initInteractive` function. This sets the line buffering appropriatly and
-ensures the terminal is in canonical mode.
