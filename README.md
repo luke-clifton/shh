@@ -7,32 +7,32 @@ It supports
 
  * Redirction of stdout and stderr
        
-    λ echo "Hello" &> StdErr
-    λ echo "Hello" &> Truncate ".tmp_file"
-    λ echo "Hello" &!> Append "/dev/null"
+       λ echo "Hello" &> StdErr
+       λ echo "Hello" &> Truncate ".tmp_file"
+       λ echo "Hello" &!> Append "/dev/null"
 
  * Piping stdout or stderr to the input of a chained process
        
-    λ cat "/dev/urandom" |> xxd |> head "-n" 5
+       λ cat "/dev/urandom" |> xxd |> head "-n" 5
 
  * Multiple processes sequentially feeding a single process
 
-    λ (echo 1 >> echo 2) |> cat
+       λ (echo 1 >> echo 2) |> cat
 
  * Use of Haskells concurrency primitives.
 
-    λ race (sleep 1) $ curl "http://this_needs_to_timeout_after_1_second"
+       λ race (sleep 1) $ curl "http://this_needs_to_timeout_after_1_second"
 
-    λ d <- readTrim $ mktemp "-d"
-    λ :{
-    | System.Directory.withCurrentDirectory d $ do
-    |   mapConcurrently_ (curl "-LOJs")
-    |     [ "https://raw.githubusercontent.com/luke-clifton/hssh/master/shell.nix"
-    |     , "https://raw.githubusercontent.com/luke-clifton/hssh/master/hssh.cabal"
-    |     ]
-    |   ls
-    | :}
-    hssh.cabal  shell.nix
+       λ d <- readTrim $ mktemp "-d"
+       λ :{
+       | System.Directory.withCurrentDirectory d $ do
+       |   mapConcurrently_ (curl "-LOJs")
+       |     [ "https://raw.githubusercontent.com/luke-clifton/hssh/master/shell.nix"
+       |     , "https://raw.githubusercontent.com/luke-clifton/hssh/master/hssh.cabal"
+       |     ]
+       |   ls
+       | :}
+       hssh.cabal  shell.nix
 
 
 ## Mnemonics 
