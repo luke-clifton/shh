@@ -60,7 +60,7 @@ unitTests = testGroup "Unit tests"
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
-        Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
+        Left x <- runProc $ catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
         x @?= Hssh.Failure "false" ["dummy"] 1
     , testCase "Write to process" $ do
         t <- readTrim mktemp
