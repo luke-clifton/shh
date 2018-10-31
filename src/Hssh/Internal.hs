@@ -371,7 +371,12 @@ pathBins = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM doesDirectoryExist pathsVar
     bins <- nub . concat <$> mapM getDirectoryContents paths
-    return $ flip filter bins $ \p -> all isLower p && not (p `elem` ["import", "if", "else", "then", "do", "in", "let", "type"])
+    return $ flip filter bins $ \p -> all isLower p && not (p `elem`
+        [ "import", "if", "else", "then", "do", "in", "let", "type"
+        , "as", "case", "of", "class", "data", "default", "deriving"
+        , "instance", "forall", "foreign", "hiding", "infix", "infixl"
+        , "infixr", "mdo", "module", "newtype", "proc", "qualified"
+        , "rec", "type", "where"])
 
 -- | Execute the given command. Further arguments can be passed in.
 --
