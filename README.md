@@ -7,9 +7,14 @@ It supports
 
  * Redirction of stdout and stderr
        
+       -- Redirect stdout
        λ echo "Hello" &> StdErr
        λ echo "Hello" &> Truncate ".tmp_file"
+
+       -- Redirect stderr
        λ echo "Hello" &!> Append "/dev/null"
+       λ echo "Hello" &!> StdOut
+
 
  * Piping stdout or stderr to the input of a chained process
        
@@ -32,12 +37,13 @@ It supports
        |     ]
        |   ls
        | :}
-       hssh.cabal  shell.nix
 
  * Capturing of process output
 
        λ loggedIn <- nub . words <$> readProc users
        λ putStrLn $ "Logged in users: " ++ show loggedIn
+
+       λ mapM_ putStrLn =<< readSplit0 (Hssh.Example.find "-maxdepth" 1 "-print0")
 
  * Capturing infinite output of a process lazily
 
