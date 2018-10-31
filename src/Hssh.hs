@@ -90,14 +90,17 @@ class PipeResult f where
     -- for redirection.
     (|!>) :: Proc a -> Proc a -> f a
 
-    -- Redirect StdOut of this process to another location
+    -- | Redirect stdout of this process to another location
     --
     -- > ls &> Append "/dev/null"
     (&>) :: Proc a -> Stream -> f a
 
-    -- Redirect StdErr of this process to another location
+    -- | Redirect StdErr of this process to another location
+    --
+    -- > ls &!> StdOut
     (&!>) :: Proc a -> Stream -> f a
 
+-- | Flipped version of @|>@
 (<|) :: PipeResult f => Proc a -> Proc a -> f a
 (<|) = flip (|>)
 
@@ -184,6 +187,9 @@ instance Monad Proc where
             Proc f' = f ar
         f' i o e (pure ()) pw
 
+-- | Run's a @Proc@ in @IO@. This is usually not required, as most
+-- commands in Hssh are polymorphic in their return type, and work
+-- just fine in @IO@ directly.
 runProc :: Proc a -> IO a
 runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())
 
@@ -228,6 +234,7 @@ withRead (Proc f) k = liftIO $
             (hGetContents r >>= k) `finally` hClose r
 
 
+-- | Read and write to a @Proc@.
 readWriteProc :: MonadIO io => Proc a -> String -> io String
 readWriteProc (Proc f) input = liftIO $ do
     (ri,wi) <- createPipe
@@ -244,12 +251,22 @@ readWriteProc (Proc f) input = liftIO $ do
         )
     pure o
 
+-- | Provide the stdin of a @Proc@ from a @String@
 writeProc :: MonadIO io => Proc a -> String -> io a
 writeProc (Proc f) input = liftIO $ do
     (r,w) <- createPipe
     fst <$> concurrently
         (f r stdout stderr (pure ()) (hClose r))
         (hPutStr w input `finally` hClose w)
+
+-- | Flipped, infix version of @writeProc@
+(>>>) :: MonadIO io => String -> Proc a -> io a
+(>>>) = flip writeProc
+
+
+-- | Infix version of @writeProc@
+(<<<) :: MonadIO io => Proc a -> String -> io a
+(<<<) = writeProc
 
 waitProc :: String -> [String] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
@@ -261,24 +278,22 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
+-- | Run an IO action, catching an @Failure@ exceptions
+-- and returning them.
 catchFailure :: IO a -> IO (Either Failure a)
 catchFailure = try
 
+-- | Run an @IO@ action returning the return code if an
+-- exception was thrown, and 0 if it wasn't.
 catchCode :: IO a -> IO Int
 catchCode a = catchFailure a >>= \case
     Right _ -> pure 0
     Left f  -> pure $ code f
 
-
+-- | Like @readProc@, but trim leading and tailing whitespace.
 readTrim :: MonadIO io => Proc a -> io String
 readTrim = fmap trim . readProc
 
-
-(>>>) :: MonadIO io => String -> Proc a -> io a
-(>>>) = flip writeProc
-
-(<<<) :: MonadIO io => Proc a -> String -> io a
-(<<<) = writeProc
 
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.
@@ -364,9 +379,7 @@ split0 = endBy "\0"
 -- | A convinience function for reading in a @"\NUL"@ seperated list of
 -- strings. This is commonly used when dealing with paths.
 --
--- ```
--- readSplit0 $ find "-print0"
--- ```
+-- > readSplit0 $ find "-print0"
 readSplit0 :: Proc () -> IO [String]
 readSplit0 p = split0 <$> readProc p
 
@@ -374,5 +387,6 @@ readSplit0 p = split0 <$> readProc p
 readLines :: Proc () -> IO [String]
 readLines p = lines <$> readProc p
 
+-- | Like @readProc@, but attempts to @Prelude.read@ the result.
 readAuto :: Read a => Proc () -> IO a
 readAuto p = read <$> readProc p
