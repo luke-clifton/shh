@@ -52,6 +52,15 @@ It supports
        00000010: 47de 3ea3 2788 44ac 9b85 0a0f a458 b949  G.>.'.D......X.I
        00000020: 5308 ddfe 5790 5a5f 39e3 bbb6 b689 2b03  S...W.Z_9.....+.
 
+ * Proper exceptions, when a process exits with a failure code, an exception
+   is thrown. You can catch these normally. The exception includes the error
+   code, the command, and all it's arguments.
+
+       λ false "Ha, it died"
+       *** Exception: Command `false "Ha, it died"` failed [exit 1]
+
+       λ catchCode false
+       1
 
 ## Mnemonics 
 
