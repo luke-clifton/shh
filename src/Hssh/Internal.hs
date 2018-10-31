@@ -288,11 +288,18 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
--- | Run a `Proc` action, catching an `Failure` exceptions
--- and returning them.
-catchFailure :: Proc a -> Proc (Either Failure a)
-catchFailure (Proc f) = Proc $ \i o e pl pw -> do
-    try $ f i o e pl pw
+-- | Allow us to catch `Failure` exceptions in `IO` and `Proc`
+class ProcFailure m where
+    -- | Run a `Proc` action, catching an `Failure` exceptions
+    -- and returning them.
+    catchFailure :: Proc a -> m (Either Failure a)
+
+instance ProcFailure Proc where
+    catchFailure (Proc f) = Proc $ \i o e pl pw -> do
+        try $ f i o e pl pw
+
+instance ProcFailure IO where
+    catchFailure = runProc . catchFailure
 
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
 -- This can be used to prevent a process from interrupting a whole pipeline.
@@ -302,16 +309,16 @@ catchFailure (Proc f) = Proc $ \i o e pl pw -> do
 --
 -- >>> (ignoreFailure  false) `|>` (sleep 2 >> echo 1)
 -- 1
-ignoreFailure :: Proc a -> Proc ()
-ignoreFailure (Proc f) = Proc $ \i o e pl pw -> do
-    catch (f i o e pl pw *> pure ()) (\Failure{} -> pure ())
+ignoreFailure :: (Functor m, ProcFailure m) => Proc a -> m ()
+ignoreFailure = void . catchFailure
 
 -- | Run an `Proc` action returning the return code if an
 -- exception was thrown, and 0 if it wasn't.
-catchCode :: Proc a -> Proc Int
-catchCode a = catchFailure a >>= \case
-    Right _ -> pure 0
-    Left f  -> pure $ failureCode f
+catchCode :: (Functor m, ProcFailure m) => Proc a -> m Int
+catchCode = fmap getCode . catchFailure
+    where
+        getCode (Right _) = 0
+        getCode (Left  f) = failureCode f
 
 -- | Like `readProc`, but trim leading and tailing whitespace.
 readTrim :: MonadIO io => Proc a -> io String
