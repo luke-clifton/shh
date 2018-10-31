@@ -67,9 +67,9 @@ instance Show Failure where
 instance Exception Failure
 
 -- | This class is used to allow most of the operators in Hssh to be
--- polymorphic in their return value. This makes using them in an @IO@
+-- polymorphic in their return value. This makes using them in an `IO`
 -- context easier (we can avoid having to prepend everything with a
--- @runProc@).
+-- `runProc`).
 class PipeResult f where
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
@@ -79,14 +79,14 @@ class PipeResult f where
     -- used.
     (|>) :: Proc a -> Proc a -> f a
 
-    -- | Similar to @|!>@ except that it connects stderr to stdin of the
+    -- | Similar to `|!>` except that it connects stderr to stdin of the
     -- next process in the chain.
     --
-    -- NB: The next command to be @|>@ on will recapture the stdout of
+    -- NB: The next command to be `|>` on will recapture the stdout of
     -- both preceding processes, because they are both going to the same
     -- handle!
     --                                            
-    -- This is probably not what you want, see the @&>@ and @&!>@ operators
+    -- This is probably not what you want, see the `&>` and `&!>` operators
     -- for redirection.
     (|!>) :: Proc a -> Proc a -> f a
 
@@ -95,12 +95,12 @@ class PipeResult f where
     -- > ls &> Append "/dev/null"
     (&>) :: Proc a -> Stream -> f a
 
-    -- | Redirect StdErr of this process to another location
+    -- | Redirect stderr of this process to another location
     --
     -- > ls &!> StdOut
     (&!>) :: Proc a -> Stream -> f a
 
--- | Flipped version of @|>@
+-- | Flipped version of `|>`
 (<|) :: PipeResult f => Proc a -> Proc a -> f a
 (<|) = flip (|>)
 
@@ -149,9 +149,13 @@ instance PipeResult Proc where
         withBinaryFile path AppendMode $ \h -> f i o h pl pw
     
 
--- | Type used to represent destinations for redirects. @Truncate file@
--- is like `> file` in a shell, and @Append file@ is like `>> file`.
+-- | Type used to represent destinations for redirects. @`Truncate` file@
+-- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.
 data Stream = StdOut | StdErr | Truncate FilePath | Append FilePath
+
+-- | Shortcut for @`Truncate` "\/dev\/null"@
+devNull :: Stream
+devNull = Truncate "/dev/null"
 
 -- | Type representing a series or pipeline (or both) of shell commands.
 newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
@@ -161,11 +165,11 @@ instance MonadIO Proc where
     liftIO a = Proc $ \_ _ _ pl pw -> do
         (pl >> a) `finally` pw
 
--- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
+-- | The `Semigroup` instance for `Proc` pipes the stdout of one process
 -- into the stdin of the next. However, consider using `|>` instead which
--- behaves when used in an @IO@ context. If you use `<>` in an IO monad
+-- behaves when used in an `IO` context. If you use `<>` in an IO monad
 -- you will be using the `IO` instance of semigroup which is a sequential
--- execution. @|>@ prevents that error.
+-- execution. `|>` prevents that error.
 instance Semigroup (Proc a) where
     (<>) = (|>)
 
@@ -187,12 +191,13 @@ instance Monad Proc where
             Proc f' = f ar
         f' i o e (pure ()) pw
 
--- | Run's a @Proc@ in @IO@. This is usually not required, as most
+-- | Run's a `Proc` in `IO`. This is usually not required, as most
 -- commands in Hssh are polymorphic in their return type, and work
--- just fine in @IO@ directly.
+-- just fine in `IO` directly.
 runProc :: Proc a -> IO a
 runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())
 
+-- | Create a `Proc` from a command and a list of arguments.
 mkProc :: String -> [String] -> Proc ()
 mkProc cmd args = Proc $ \i o e pl pw -> do
     bracket
@@ -209,8 +214,8 @@ mkProc cmd args = Proc $ \i o e pl pw -> do
             (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
 
 
--- | Read the stdout of a @Proc@ in any @MonadIO@ (including other @Proc@s).
--- This is strict, so the whole output is read into a @String@. See @withRead@
+-- | Read the stdout of a `Proc` in any `MonadIO` (including other `Proc`s).
+-- This is strict, so the whole output is read into a `String`. See `withRead`
 -- for a lazy version that can be used for streaming.
 readProc :: MonadIO io => Proc a -> io String
 readProc (Proc f) = liftIO $ do
@@ -234,7 +239,7 @@ withRead (Proc f) k = liftIO $
             (hGetContents r >>= k) `finally` hClose r
 
 
--- | Read and write to a @Proc@.
+-- | Read and write to a `Proc`...
 readWriteProc :: MonadIO io => Proc a -> String -> io String
 readWriteProc (Proc f) input = liftIO $ do
     (ri,wi) <- createPipe
@@ -251,7 +256,14 @@ readWriteProc (Proc f) input = liftIO $ do
         )
     pure o
 
--- | Provide the stdin of a @Proc@ from a @String@
+-- | Some as `readWriteProc`. Map a `Proc` over a `String`.
+--
+-- >>> mapP shasum "Hello"
+-- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
+mapP :: MonadIO io => Proc a -> String -> io String
+mapP = readWriteProc
+
+-- | Provide the stdin of a `Proc` from a `String`
 writeProc :: MonadIO io => Proc a -> String -> io a
 writeProc (Proc f) input = liftIO $ do
     (r,w) <- createPipe
@@ -259,15 +271,17 @@ writeProc (Proc f) input = liftIO $ do
         (f r stdout stderr (pure ()) (hClose r))
         (hPutStr w input `finally` hClose w)
 
--- | Flipped, infix version of @writeProc@
+-- | Flipped, infix version of `writeProc`
 (>>>) :: MonadIO io => String -> Proc a -> io a
 (>>>) = flip writeProc
 
 
--- | Infix version of @writeProc@
+-- | Infix version of `writeProc`
 (<<<) :: MonadIO io => Proc a -> String -> io a
 (<<<) = writeProc
 
+-- | What on a given `ProcessHandle`, and throw an exception of
+-- type `Failure` if it's exit code is non-zero (ignoring SIGPIPE)
 waitProc :: String -> [String] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
@@ -275,22 +289,23 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
         | otherwise -> throwIO $ createFailure cmd arg c
     ExitSuccess -> pure ()
 
+-- | Trim leading and tailing whitespace.
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
--- | Run an IO action, catching an @Failure@ exceptions
+-- | Run an IO action, catching an `Failure` exceptions
 -- and returning them.
 catchFailure :: IO a -> IO (Either Failure a)
 catchFailure = try
 
--- | Run an @IO@ action returning the return code if an
+-- | Run an `IO` action returning the return code if an
 -- exception was thrown, and 0 if it wasn't.
 catchCode :: IO a -> IO Int
 catchCode a = catchFailure a >>= \case
     Right _ -> pure 0
     Left f  -> pure $ code f
 
--- | Like @readProc@, but trim leading and tailing whitespace.
+-- | Like `readProc`, but trim leading and tailing whitespace.
 readTrim :: MonadIO io => Proc a -> io String
 readTrim = fmap trim . readProc
 
@@ -298,12 +313,16 @@ readTrim = fmap trim . readProc
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.
 class ExecArg a where
-    asArg :: a -> String
-    default asArg :: Show a => a -> String
-    asArg = show
+    asArg :: a -> [String]
+    default asArg :: Show a => a -> [String]
+    asArg a = [show a]
 
 instance ExecArg String where
-    asArg = id
+    asArg s = [s]
+
+-- TODO: Determine if `Char` flags should be prepended with a '-' or not. 
+-- instance ExecArg Char where
+--     asArg c = [['-', c]]
 
 instance ExecArg Int
 instance ExecArg Integer
@@ -317,12 +336,12 @@ instance ExecArgs (Proc ()) where
     toArgs (cmd:args) = mkProc cmd args
 
 instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
-    toArgs f i = toArgs $ f ++ [asArg i]
+    toArgs f i = toArgs $ f ++ asArg i
 -- 
 -- instance ExecArgs [String] where
 --     toArgs = id
 
--- | Commands can be executed directly in IO (this goes via the @CmdT@ instance)
+-- | Commands can be executed directly in IO
 instance ExecArgs (IO ()) where
     toArgs = runProc . toArgs
 
@@ -376,17 +395,17 @@ data U f a where
 split0 :: String -> [String]
 split0 = endBy "\0"
 
--- | A convinience function for reading in a @"\NUL"@ seperated list of
+-- | A convinience function for reading in a @"\\NUL"@ seperated list of
 -- strings. This is commonly used when dealing with paths.
 --
 -- > readSplit0 $ find "-print0"
 readSplit0 :: Proc () -> IO [String]
 readSplit0 p = split0 <$> readProc p
 
--- | A convinience function for reading the output lines of a @Proc@.
+-- | A convinience function for reading the output lines of a `Proc`.
 readLines :: Proc () -> IO [String]
 readLines p = lines <$> readProc p
 
--- | Like @readProc@, but attempts to @Prelude.read@ the result.
+-- | Like `readProc`, but attempts to `Prelude.read` the result.
 readAuto :: Read a => Proc () -> IO a
 readAuto p = read <$> readProc p

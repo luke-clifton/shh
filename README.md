@@ -55,6 +55,17 @@ It supports
        00000010: 47de 3ea3 2788 44ac 9b85 0a0f a458 b949  G.>.'.D......X.I
        00000020: 5308 ddfe 5790 5a5f 39e3 bbb6 b689 2b03  S...W.Z_9.....+.
 
+ * Write strings to stdin of a process.
+
+       λ writeProc cat "Hello\n"
+       Hello
+
+       λ "Hello" >>> shasum
+       f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -
+
+       λ shasum <<< "Hello"
+       f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -
+
  * Proper exceptions, when a process exits with a failure code, an exception
    is thrown. You can catch these normally. The exception includes the error
    code, the command, and all it's arguments.
