@@ -384,6 +384,8 @@ exe s = toArgs [s]
 -- | Create a function for the executable named
 loadExe :: String -> Q [Dec]
 loadExe executable =
+    -- TODO: Can we place haddock markup in TH generated functions.
+    -- TODO: Can we palce the man page for each function in there xD
     let
         name = mkName executable
         impl = valD (varP name) (normalB [|
