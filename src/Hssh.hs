@@ -94,6 +94,9 @@ class PipeResult f where
     -- Redirect StdErr of this process to another location
     (&!>) :: Proc a -> Stream -> f a
 
+(<|) :: PipeResult f => Proc a -> Proc a -> f a
+(<|) = flip (|>)
+
 instance PipeResult IO where
     a |> b = runProc $ a |> b
     a |!> b = runProc $ a |!> b
@@ -103,13 +106,13 @@ instance PipeResult IO where
 instance PipeResult Proc where
     (|>) = (<>)
     (PP a) |!> (PP b) = PP $ \i o e -> do
-        bracket
-            createPipe
-            (\(r,w) -> finally (hClose r) (hClose w))
-            $ \(r,w) -> do
+        (r,w) <- createPipe
+        let
+            run = do
                 aw <- a i o w
                 bw <- b r o e
                 pure $ snd <$> concurrently aw bw
+        run `onException` (hClose r `finally` hClose w)
 
 
     (PP f) &> StdIO = PP $ \i o e -> f i o e
@@ -142,12 +145,117 @@ data Stream = StdIO | StdErr | Truncate FilePath | Append FilePath
 newtype Proc a = PP (Handle -> Handle -> Handle -> IO (IO a))
     deriving Functor
 
+newtype PrXX a = PrXX (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
+    deriving Functor
+
+instance Semigroup (PrXX a) where
+    (PrXX a) <> (PrXX b) = PrXX $ \i o e pl pw -> do
+        (r,w) <- createPipe
+        a' <- async $ a i w e (pure ()) (hClose w)
+        b' <- async $ b r o e (pure ()) (hClose r)
+        (_, br) <- (pl >> waitBoth a' b') `finally` pw
+        pure br
+
+instance Applicative PrXX where
+    pure a = PrXX $ \_ _ _ pw pl -> do
+        pw `finally` pl
+        pure a
+
+    f <*> a = do
+        f' <- f
+        a' <- a
+        pure (f' a')
+        
+
+instance Monad PrXX where
+    (PrXX a) >>= f = PrXX $ \i o e pl pw -> do
+        ar <- a i o e pl (pure ())
+        let
+            PrXX f' = f ar
+        f' i o e (pure ()) pw
+
+runPrXX :: PrXX a -> IO a
+runPrXX (PrXX f) = f stdin stdout stderr (pure ()) (pure ())
+
+mkPrXX :: String -> [String] -> PrXX ()
+mkPrXX cmd args = PrXX $ \i o e pl pw -> do
+    (_,_,_,ph) <- createProcess_ cmd (proc cmd args)
+        { std_in = UseHandle i
+        , std_out = UseHandle o
+        , std_err = UseHandle e
+        , close_fds = True
+        }
+    pl
+    res <- (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
+    case res of
+        Nothing -> pure ()
+        Just f  -> throwIO f
+
+
+readPrXX :: MonadIO io => PrXX a -> io String
+readPrXX (PrXX f) = liftIO $ do
+    (r,w) <- createPipe
+    (_,o) <- concurrently
+        (f stdin w stderr (pure ()) (hClose w))
+        (do
+            output <- hGetContents r
+            C.evaluate $ rnf output
+            hClose r
+            pure output
+        )
+    pure o
+
+readWritePrXX :: MonadIO io => PrXX a -> String -> io String
+readWritePrXX (PrXX f) input = liftIO $ do
+    (ri,wi) <- createPipe
+    (ro,wo) <- createPipe
+    (_,o) <- concurrently
+        (concurrently
+            (f ri wo stderr (pure ()) (hClose wo `finally` hClose ri))
+            (hPutStr wi input `finally` hClose wi)
+        ) (do
+            output <- hGetContents ro
+            C.evaluate $ rnf output
+            hClose ro
+            pure output
+        )
+    pure o
+
+writePrXX :: MonadIO io => PrXX a -> String -> io a
+writePrXX (PrXX f) input = liftIO $ do
+    (r,w) <- createPipe
+    fst <$> concurrently
+        (f r stdout stderr (pure ()) (hClose r))
+        (hPutStr w input `finally` hClose w)
+
+
 instance Applicative Proc where
     pure a = PP $ \_ _ _ -> pure (pure a)
-    f <*> a = PP $ \i o e -> do
-        f' <- fst <$> runPP f i o e (pure ())
-        a' <- fst <$> runPP a i o e (pure ())
-        pure $! (pure $! f' a')
+    (PP f) <*> (PP a) = PP $ \i o e -> do
+        f' <- f i o e
+        pure $ do
+            f'' <- f'
+            print "Done f'"
+            a'' <- join $ a i o e
+            print "Done a'"
+            pure $ f'' a''
+            
+
+-- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
+-- into the stdin of the next. However, consider using `|>` instead which
+-- behaves when used in an @IO@ context. If you use `<>` in an IO monad
+-- you will be using the `IO` instance of semigroup which is a sequential
+-- execution. @|>@ prevents that error.
+instance Semigroup (Proc a) where
+    a <> b = PP $ \i o e -> do
+        (r,w) <- createPipe
+        let
+            run = do
+                fst <$> (runPP a i w e $ do
+                    runPP b r o e (pure ())
+                    )
+        pure $ run `finally` (hClose r `finally` hClose w)
+
 
 instance Monad Proc where
     a >>= f = PP $ \i o e -> do
@@ -164,21 +272,6 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
         | fromIntegral c == negate sigPIPE -> pure Nothing
         | otherwise -> pure $ Just $ createFailure cmd arg c
     ExitSuccess -> pure Nothing
-
--- | The @Semigroup@ instance for @Proc@ pipes the stdout of one process
--- into the stdin of the next. However, consider using `|>` instead which
--- behaves when used in an @IO@ context. If you use `<>` in an IO monad
--- you will be using the `IO` instance of semigroup which is a sequential
--- execution. @|>@ prevents that error.
-instance Semigroup (Proc a) where
-    (PP a) <> (PP b) = PP $ \i o e -> do
-        bracket
-            createPipe
-            (\(r,w) -> finally (hClose r) (hClose w))
-            $ \(r,w) -> do
-                aw <- a i w e
-                bw <- b r o e
-                pure $ snd <$> concurrently aw bw
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
@@ -316,8 +409,8 @@ instance ExecArg Word
 class ExecArgs a where
     toArgs :: [String] -> a
 
-instance ExecArgs (Proc ()) where
-    toArgs (cmd:args) = mkProc cmd args
+instance ExecArgs (PrXX ()) where
+    toArgs (cmd:args) = mkPrXX cmd args
 
 instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
     toArgs f i = toArgs $ f ++ [asArg i]
@@ -327,7 +420,7 @@ instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
 
 -- | Commands can be executed directly in IO (this goes via the @CmdT@ instance)
 instance ExecArgs (IO ()) where
-    toArgs = runProc . toArgs
+    toArgs = runPrXX . toArgs
 
 -- | Force a `()` result.
 class Unit a
