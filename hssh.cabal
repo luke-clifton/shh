@@ -18,13 +18,10 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Hssh
                      , Hssh.Example
-  -- other-modules:       
-  -- other-extensions:    
+                     , Hssh.Internal
   build-depends:       base >=4.9 && <4.12
                      , async
                      , deepseq
-                     , free
-                     , kan-extensions
                      , directory
                      , filepath
                      , mtl

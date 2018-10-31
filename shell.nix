@@ -5,17 +5,20 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, async, base, deepseq, directory, filepath
-      , free, kan-extensions, mtl, process, split, stdenv, tasty
-      , tasty-hunit, tasty-quickcheck, template-haskell, unix
+      , mtl, process, split, stdenv, tasty, tasty-hunit, tasty-quickcheck
+      , template-haskell, unix
       }:
       mkDerivation {
         pname = "hssh";
         version = "0.1.0.0";
         src = ./.;
+        isLibrary = true;
+        isExecutable = true;
         libraryHaskellDepends = [
-          async base deepseq directory filepath free kan-extensions mtl
-          process split template-haskell unix
+          async base deepseq directory filepath mtl process split
+          template-haskell unix
         ];
+        executableHaskellDepends = [ base ];
         testHaskellDepends = [ base tasty tasty-hunit tasty-quickcheck ];
         description = "Simple shell scripting from Haskell";
         license = stdenv.lib.licenses.bsd3;
