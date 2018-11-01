@@ -16,7 +16,7 @@ import Control.DeepSeq (rnf)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char (isLower, isSpace)
+import Data.Char (isLower, isSpace, isAlphaNum)
 import Data.List (nub, dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import Language.Haskell.TH
@@ -391,14 +391,17 @@ exe s = toArgs [s]
 
 -- | Create a function for the executable named
 loadExe :: String -> Q [Dec]
-loadExe executable =
+loadExe s = loadExeAs s s
+
+loadExeAs :: String -> String -> Q [Dec]
+loadExeAs fnName executable =
     -- TODO: Can we place haddock markup in TH generated functions.
     -- TODO: Can we palce the man page for each function in there xD
     -- https://ghc.haskell.org/trac/ghc/ticket/5467
     let
-        name = mkName executable
+        name = mkName $ fnName
         impl = valD (varP name) (normalB [|
-            toArgs [] executable
+            exe executable
             |]) []
         typn = mkName "a"
         typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
@@ -406,12 +409,28 @@ loadExe executable =
         i <- impl
         return $ [typ,i]
 
+validIdentifier :: String -> Bool
+validIdentifier "" = False
+validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotIdent
+    where
+        isValidInit c = isLower c || c `elem` "_"
+        isValidC c = isAlphaNum c || c `elem` "_'"
+        isNotIdent = not $ ident `elem`
+            [ "import", "if", "else", "then", "do", "in", "let", "type"
+            , "as", "case", "of", "class", "data", "default", "deriving"
+            , "instance", "forall", "foreign", "hiding", "infix", "infixl"
+            , "infixr", "mdo", "module", "newtype", "proc", "qualified"
+            , "rec", "type", "where"]
+
 -- | Scans your '$PATH' environment variable and creates a function for each
 -- executable found.
 loadEnv :: Q [Dec]
-loadEnv = do
+loadEnv = loadAnnotatedEnv id
+
+loadAnnotatedEnv :: (String -> String) -> Q [Dec]
+loadAnnotatedEnv f = do
     bins <- runIO pathBins
-    fmap join $ mapM loadExe bins
+    fmap join $ mapM (uncurry loadExeAs) $ zip (map f bins) bins
 
 -- TODO: Does this exist anywhere?
 -- | Helper type for building a monad.

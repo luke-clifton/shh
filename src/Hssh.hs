@@ -47,7 +47,9 @@ module Hssh
     , ExecArg(..)
     -- | == Template Haskell helpers
     , loadEnv
+    , loadAnnotatedEnv
     , loadExe
+    , loadExeAs
     ) where
 
 import Hssh.Internal

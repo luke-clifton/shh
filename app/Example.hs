@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
 
 module Main where
 
@@ -11,4 +12,4 @@ import Data.List
 $(loadEnv)
 
 main :: IO ()
-main = cat
+main = (sleep 1 >> echo "Hello" >> sleep 2) |> cat

@@ -4,5 +4,4 @@ module Hssh.Example where
 
 import Hssh
 
-$(loadEnv)
-
+$(loadAnnotatedEnv (\s -> s ++ "_"))
