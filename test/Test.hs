@@ -2,7 +2,7 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Main where
 
-import Hssh
+import Shh
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -61,7 +61,7 @@ unitTests = testGroup "Unit tests"
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
         Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
-        x @?= Hssh.Failure "false" ["dummy"] 1
+        x @?= Shh.Failure "false" ["dummy"] 1
     , testCase "Write to process" $ do
         t <- readTrim mktemp
         writeProc (cat &> Truncate t) "Hello"

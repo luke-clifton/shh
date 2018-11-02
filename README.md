@@ -1,6 +1,6 @@
-# Hssh
+# Shh
 
-Hssh is a library to enable convinient shell-like programming in Haskell.
+Shh is a library to enable convinient shell-like programming in Haskell.
 It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 
 It supports
@@ -35,8 +35,8 @@ It supports
        λ :{
        | System.Directory.withCurrentDirectory d $ do
        |   mapConcurrently_ (curl "-LOJs")
-       |     [ "https://raw.githubusercontent.com/luke-clifton/hssh/master/shell.nix"
-       |     , "https://raw.githubusercontent.com/luke-clifton/hssh/master/hssh.cabal"
+       |     [ "https://raw.githubusercontent.com/luke-clifton/shh/master/shell.nix"
+       |     , "https://raw.githubusercontent.com/luke-clifton/shh/master/shh.cabal"
        |     ]
        |   ls
        | :}
@@ -46,7 +46,7 @@ It supports
        λ loggedIn <- nub . words <$> readProc users
        λ putStrLn $ "Logged in users: " ++ show loggedIn
 
-       λ mapM_ putStrLn =<< readSplit0 (Hssh.Example.find "-maxdepth" 1 "-print0")
+       λ mapM_ putStrLn =<< readSplit0 (Shh.Example.find "-maxdepth" 1 "-print0")
 
  * Capturing infinite output of a process lazily
 
@@ -78,7 +78,7 @@ It supports
 
 ## Mnemonics 
 
-Hssh has many symbols that might seem intimidating at first, but there
+Shh has many symbols that might seem intimidating at first, but there
 is a simple mnemonic for them.
 
     |     Piping. Looks like a pipe, same as in POSIX shells.

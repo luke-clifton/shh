@@ -6,8 +6,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
--- | Hssh provides a shell-like environment for Haskell.
-module Hssh
+-- | Shh provides a shell-like environment for Haskell.
+module Shh
     ( initInteractive
     -- | == Constructing a `Proc`
     -- You will rarely have to use these as most of the time these are
@@ -52,4 +52,4 @@ module Hssh
     , loadExeAs
     ) where
 
-import Hssh.Internal
+import Shh.Internal

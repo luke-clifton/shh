@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Hssh.Example where
+module Shh.Example where
 
-import Hssh
+import Shh
 
 $(loadAnnotatedEnv (\s -> s ++ "_"))

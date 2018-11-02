@@ -9,7 +9,7 @@ let
       , template-haskell, unix
       }:
       mkDerivation {
-        pname = "hssh";
+        pname = "shh";
         version = "0.1.0.0";
         src = ./.;
         isLibrary = true;

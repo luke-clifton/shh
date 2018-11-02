@@ -7,8 +7,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 
--- | See documentation for "Hssh".
-module Hssh.Internal where
+-- | See documentation for "Shh".
+module Shh.Internal where
 
 
 import Control.Concurrent.Async
@@ -58,7 +58,7 @@ instance Show Failure where
 
 instance Exception Failure
 
--- | This class is used to allow most of the operators in Hssh to be
+-- | This class is used to allow most of the operators in Shh to be
 -- polymorphic in their return value. This makes using them in an `IO`
 -- context easier (we can avoid having to prepend everything with a
 -- `runProc`).
@@ -191,7 +191,7 @@ instance Monad Proc where
         f' i o e (pure ()) pw
 
 -- | Run's a `Proc` in `IO`. This is usually not required, as most
--- commands in Hssh are polymorphic in their return type, and work
+-- commands in Shh are polymorphic in their return type, and work
 -- just fine in `IO` directly.
 runProc :: Proc a -> IO a
 runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())

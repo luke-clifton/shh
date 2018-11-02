@@ -4,7 +4,7 @@
 module Main where
 
 import Control.Monad
-import Hssh
+import Shh
 import Data.Monoid
 import Data.Char
 import Data.List
