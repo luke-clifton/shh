@@ -19,6 +19,7 @@ import Control.Monad.IO.Class
 import Data.Char (isLower, isSpace, isAlphaNum)
 import Data.List (nub, dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
+import Data.Maybe (mapMaybe)
 import Language.Haskell.TH
 import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.Environment (getEnv)
@@ -373,13 +374,7 @@ pathBins :: IO [FilePath]
 pathBins = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM doesDirectoryExist pathsVar
-    bins <- nub . concat <$> mapM getDirectoryContents paths
-    return $ flip filter bins $ \p -> all isLower p && not (p `elem`
-        [ "import", "if", "else", "then", "do", "in", "let", "type"
-        , "as", "case", "of", "class", "data", "default", "deriving"
-        , "instance", "forall", "foreign", "hiding", "infix", "infixl"
-        , "infixr", "mdo", "module", "newtype", "proc", "qualified"
-        , "rec", "type", "where"])
+    nub . concat <$> mapM getDirectoryContents paths
 
 -- | Execute the given command. Further arguments can be passed in.
 --
@@ -393,6 +388,8 @@ exe s = toArgs [s]
 loadExe :: String -> Q [Dec]
 loadExe s = loadExeAs s s
 
+-- | @$(loadExeAs fnName executable)@ defines a function called @fnName@
+-- which executes the path in @executable@.
 loadExeAs :: String -> String -> Q [Dec]
 loadExeAs fnName executable =
     -- TODO: Can we place haddock markup in TH generated functions.
@@ -409,6 +406,7 @@ loadExeAs fnName executable =
         i <- impl
         return $ [typ,i]
 
+-- | Checks if a String is a valid Haskell identifier.
 validIdentifier :: String -> Bool
 validIdentifier "" = False
 validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotIdent
@@ -423,20 +421,24 @@ validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotI
             , "rec", "type", "where"]
 
 -- | Scans your '$PATH' environment variable and creates a function for each
--- executable found.
+-- executable found. Binaries that would not create valid Haskell identifiers
+-- are ignored.
 loadEnv :: Q [Dec]
 loadEnv = loadAnnotatedEnv id
 
+-- | Like `loadEnv`, but allows you to modify the function name that would
+-- be generated.
 loadAnnotatedEnv :: (String -> String) -> Q [Dec]
 loadAnnotatedEnv f = do
     bins <- runIO pathBins
-    fmap join $ mapM (uncurry loadExeAs) $ zip (map f bins) bins
+    let pairs = mapMaybe getAnnotation bins
+    fmap join $ mapM (uncurry loadExeAs) pairs
 
--- TODO: Does this exist anywhere?
--- | Helper type for building a monad.
-data U f a where
-    U :: f -> U f ()
-
+    where
+        getAnnotation :: String -> Maybe (String,String)
+        getAnnotation s
+            | validIdentifier (f s) = Just (f s, s)
+            | otherwise             = Nothing
 
 -- | Function that splits '\0' seperated list of strings.
 split0 :: String -> [String]
