@@ -4,16 +4,23 @@
 name:                hssh
 version:             0.1.0.0
 synopsis:            Simple shell scripting from Haskell
--- description:         
+description:         Provides a shell scripting environment for Haskell. It
+                     helps you all external binaries, and allows you to
+                     perform many shell-like functions, such as piping
+                     and redirection.
 license:             BSD3
 license-file:        LICENSE
 author:              Luke Clifton
 maintainer:          lukec@themk.net
--- copyright:           
+copyright:           (c) 2018 Luke Clifton
 category:            System
 build-type:          Simple
-extra-source-files:  ChangeLog.md
+extra-source-files:  ChangeLog.md, README.md
 cabal-version:       >=1.10
+
+source-repository head
+  type: git
+  location: https://github.com/luke-clifton/hssh
 
 library
   exposed-modules:     Hssh
