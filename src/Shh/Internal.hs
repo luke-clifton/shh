@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 
@@ -19,9 +20,9 @@ import Control.Monad.IO.Class
 import Data.Char (isLower, isSpace, isAlphaNum)
 import Data.List (nub, dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import Language.Haskell.TH
-import System.Directory (doesDirectoryExist, getDirectoryContents)
+import qualified System.Directory as Dir
 import System.Environment (getEnv)
 import System.Exit (ExitCode(..))
 import System.IO
@@ -379,8 +380,9 @@ instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
 pathBins :: IO [FilePath]
 pathBins = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
-    paths <- filterM doesDirectoryExist pathsVar
-    nub . concat <$> mapM getDirectoryContents paths
+    paths <- filterM Dir.doesDirectoryExist pathsVar
+    ps <- nub . concat <$> mapM Dir.getDirectoryContents paths
+    filterM checkExecutable ps
 
 -- | Execute the given command. Further arguments can be passed in.
 --
@@ -409,6 +411,8 @@ loadExeAs fnName executable =
         typn = mkName "a"
         typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
     in do
+        isExe <- runIO $ checkExecutable executable
+        when (not isExe) $ error $ "Attempted to load '" ++ executable ++ "', but it isn't executable"
         i <- impl
         return $ [typ,i]
 
@@ -428,23 +432,45 @@ validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotI
 
 -- | Scans your '$PATH' environment variable and creates a function for each
 -- executable found. Binaries that would not create valid Haskell identifiers
--- are ignored.
+-- are ignored. It also creates the IO action @missingExecutables@ which will
+-- do a runtime check to ensure all the executables that were found at
+-- compile time still exist.
 loadEnv :: Q [Dec]
 loadEnv = loadAnnotatedEnv id
 
--- | Like `loadEnv`, but allows you to modify the function name that would
--- be generated.
-loadAnnotatedEnv :: (String -> String) -> Q [Dec]
-loadAnnotatedEnv f = do
-    bins <- runIO pathBins
+-- | Test to see if an executable can be found either on the $PATH or absolute.
+checkExecutable :: FilePath -> IO Bool
+checkExecutable = fmap isJust . Dir.findExecutable
+
+-- | Load the given executables into the program, checking their executability
+-- and creating a function @missingExecutables@ to do a runtime check for their
+-- availability.
+load :: [String] -> Q [Dec]
+load = loadAnnotated id
+
+-- | Same as `load`, but allows you to modify the function names.
+loadAnnotated :: (String -> String) -> [String] -> Q [Dec]
+loadAnnotated f bins = do
     let pairs = mapMaybe getAnnotation bins
-    fmap join $ mapM (uncurry loadExeAs) pairs
+    ds <- fmap join $ mapM (uncurry loadExeAs) pairs
+    d <- valD (varP (mkName "missingExecutables")) (normalB [|
+                filterM (fmap not . checkExecutable) bins
+            |]) []
+
+    pure (d:ds)
 
     where
         getAnnotation :: String -> Maybe (String,String)
         getAnnotation s
             | validIdentifier (f s) = Just (f s, s)
             | otherwise             = Nothing
+
+-- | Like `loadEnv`, but allows you to modify the function name that would
+-- be generated.
+loadAnnotatedEnv :: (String -> String) -> Q [Dec]
+loadAnnotatedEnv f = do
+    bins <- runIO pathBins
+    loadAnnotated f bins
 
 -- | Function that splits '\0' seperated list of strings. Useful in conjuction
 -- with @find . "-print0"@.

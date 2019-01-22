@@ -53,7 +53,9 @@ module Shh
     -- | == Constructing Arguments
     , ExecArg(..)
     -- | == Template Haskell helpers
+    , load
     , loadEnv
+    , loadAnnotated
     , loadAnnotatedEnv
     , loadExe
     , loadExeAs

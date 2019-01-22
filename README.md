@@ -9,7 +9,8 @@ It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 It supports
 
  * Automatically defining a function for each executable on your `$PATH`
-   using template Haskell.
+   using template Haskell, as well as a runtime check to ensure they all
+   exist on startup.
 
  * Redirction of stdout and stderr
        
@@ -107,6 +108,10 @@ Enable Temlpate Haskell and load the environment
 
 You now have all your executables available as simple to read
 Haskell functions.
+
+If you want to check that all the dependenies still exist, you can use
+`missingExecutables :: IO [String]`, which will tell you if anything is
+missing.
 
 ### Usage in GHCi
 
