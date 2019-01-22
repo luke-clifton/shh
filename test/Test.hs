@@ -70,8 +70,8 @@ unitTests = testGroup "Unit tests"
         writeProc (cat &> Truncate t) "Goodbye"
         r <- readProc (cat t)
         r @?= "Goodbye"
-    , testCase "mapP" $ do
-        r <- mapP shasum "test"
+    , testCase "apply" $ do
+        r <- apply shasum "test"
         r @?= "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3  -\n"
     , testCase "ignoreFailure" $ do
         r <- readProc $ ignoreFailure false |> echo "Hello"

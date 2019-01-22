@@ -34,7 +34,7 @@ module Shh
     , writeProc
     , (<<<), (>>>)
     , readWriteProc
-    , mapP
+    , apply
     -- | == Exceptions
     -- If any exception is allowed to propagate out of a pipeline, all the
     -- processes comprising the pipeline will be terminated. This is contrary

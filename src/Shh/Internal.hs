@@ -255,12 +255,12 @@ readWriteProc (Proc f) input = liftIO $ do
         )
     pure o
 
--- | Some as `readWriteProc`. Map a `Proc` over a `String`.
+-- | Some as `readWriteProc`. Apply a `Proc` to a `String`.
 --
--- >>> mapP shasum "Hello"
+-- >>> apply shasum "Hello"
 -- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
-mapP :: MonadIO io => Proc a -> String -> io String
-mapP = readWriteProc
+apply :: MonadIO io => Proc a -> String -> io String
+apply = readWriteProc
 
 -- | Provide the stdin of a `Proc` from a `String`
 writeProc :: MonadIO io => Proc a -> String -> io a
