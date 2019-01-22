@@ -1,5 +1,9 @@
 # Revision history for execpath
 
+## 0.2.0.0 -- 2019-01-23
+
+* Extended the ExecArg typeclass to handle lists.
+
 ## 0.1.1.0 -- 2019-01-22
 
 * Generate an IO action to check for missing dependencies at runtime.
