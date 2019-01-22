@@ -22,7 +22,7 @@ source-repository head
 library
   exposed-modules:     Shh
                      , Shh.Internal
-  build-depends:       base >=4.9 && <4.13
+  build-depends:       base >=4.11 && <4.13
                      , async
                      , deepseq
                      , directory

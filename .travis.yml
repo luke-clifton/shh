@@ -2,4 +2,3 @@ language: haskell
 ghc:
   - "8.6"
   - "8.4"
-  - "8.2"
