@@ -55,7 +55,7 @@ unitTests = testGroup "Unit tests"
         r @?= "test\n"
     , testCase "Lazy read" $ do
         withRead (cat "/dev/urandom" |> xxd) $ \s -> do
-            take 10 s @?= "00000000: "
+            take 10 s @?= "000000"
     , testCase "Multiple outputs" $ do
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
