@@ -343,12 +343,18 @@ class ExecArg a where
     default asArg :: Show a => a -> [String]
     asArg a = [show a]
 
-instance ExecArg String where
-    asArg s = [s]
+    -- God, I hate that String is [Char]...
+    asArgFromList :: [a] -> [String]
+    default asArgFromList :: Show a => [a] -> [String]
+    asArgFromList = concatMap asArg
 
--- TODO: Determine if `Char` flags should be prepended with a '-' or not. 
--- instance ExecArg Char where
---     asArg c = [['-', c]]
+instance ExecArg Char where
+    asArg s = [[s]]
+    asArgFromList s = [s]
+
+instance ExecArg a => ExecArg [a] where
+    asArg = asArgFromList
+    asArgFromList = concatMap asArg
 
 instance ExecArg Int
 instance ExecArg Integer
