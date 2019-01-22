@@ -21,7 +21,6 @@ source-repository head
 
 library
   exposed-modules:     Shh
-                     , Shh.Example
                      , Shh.Internal
   build-depends:       base >=4.9 && <4.13
                      , async
