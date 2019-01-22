@@ -1,11 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE GADTs #-}
 -- | Shh provides a shell-like environment for Haskell.
 module Shh
     ( initInteractive
