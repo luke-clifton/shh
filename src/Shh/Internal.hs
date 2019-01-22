@@ -12,7 +12,7 @@ module Shh.Internal where
 
 
 import Control.Concurrent.Async
-import Control.DeepSeq (rnf)
+import Control.DeepSeq (rnf,force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
@@ -217,26 +217,33 @@ mkProc cmd args = Proc $ \i o e pl pw -> do
 -- This is strict, so the whole output is read into a `String`. See `withRead`
 -- for a lazy version that can be used for streaming.
 readProc :: MonadIO io => Proc a -> io String
-readProc (Proc f) = liftIO $ do
-    (r,w) <- createPipe
-    (_,o) <- concurrently
-        (f stdin w stderr (pure ()) (hClose w))
-        (do
-            output <- hGetContents r
-            C.evaluate $ rnf output
-            hClose r
-            pure output
-        )
-    pure o
+readProc p = withRead p pure
 
 -- | Run a process and capture it's output lazily. Once the continuation
 -- is completed, the handles are closed, and the process is terminated.
-withRead :: MonadIO io => Proc a -> (String -> IO b) -> io b
+withRead :: (NFData b, MonadIO io) => Proc a -> (String -> IO b) -> io b
 withRead (Proc f) k = liftIO $ 
     withPipe $ \r w -> do
         withAsync (f stdin w stderr (pure ()) (hClose w)) $ \_ ->
-            (hGetContents r >>= k) `finally` hClose r
+            (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
 
+-- | Apply a transformation function to the string before the IO action.
+withRead' :: (NFData b, MonadIO io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
+withRead' f p io = withRead p (io . f)
+
+-- | Like @'withRead'@ except it splits the string with @'split0'@ first.
+withReadSplit0 :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadSplit0 = withRead' split0
+
+-- | Like @'withRead'@ except it splits the string with @'lines'@ first.
+--
+-- NB: Please consider using @'withReadSplit0'@ where you can.
+withReadLines :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadLines = withRead' lines
+
+-- | Like @'withRead'@ except it splits the string with @'words'@ first.
+withReadWords :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadWords = withRead' words
 
 -- | Read and write to a `Proc`...
 readWriteProc :: MonadIO io => Proc a -> String -> io String
@@ -327,7 +334,6 @@ catchCode = fmap getCode . catchFailure
 -- | Like `readProc`, but trim leading and tailing whitespace.
 readTrim :: MonadIO io => Proc a -> io String
 readTrim = fmap trim . readProc
-
 
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.
@@ -440,7 +446,8 @@ loadAnnotatedEnv f = do
             | validIdentifier (f s) = Just (f s, s)
             | otherwise             = Nothing
 
--- | Function that splits '\0' seperated list of strings.
+-- | Function that splits '\0' seperated list of strings. Useful in conjuction
+-- with @find . "-print0"@.
 split0 :: String -> [String]
 split0 = endBy "\0"
 
@@ -449,11 +456,17 @@ split0 = endBy "\0"
 --
 -- > readSplit0 $ find "-print0"
 readSplit0 :: Proc () -> IO [String]
-readSplit0 p = split0 <$> readProc p
+readSplit0 p = withReadSplit0 p pure
 
 -- | A convinience function for reading the output lines of a `Proc`.
+--
+-- Note: Please consider using @'readSplit0'@ instead if you can.
 readLines :: Proc () -> IO [String]
-readLines p = lines <$> readProc p
+readLines p = withReadLines p pure
+
+-- | Read output into a list of words
+readWords :: Proc () -> IO [String]
+readWords p = withReadWords p pure
 
 -- | Like `readProc`, but attempts to `Prelude.read` the result.
 readAuto :: Read a => Proc () -> IO a
