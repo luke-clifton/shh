@@ -1,6 +1,7 @@
 # Shh
 
-![](https://img.shields.io/hackage/v/shh.svg?colorB=%23999)
+[![Hackage](https://img.shields.io/hackage/v/shh.svg?colorB=%23999)](http://hackage.haskell.org/package/shh)
+[![Build Status](https://travis-ci.org/luke-clifton/shh.svg?branch=master)](https://travis-ci.org/luke-clifton/shh)
 
 Shh is a library to enable convinient shell-like programming in Haskell.
 It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
