@@ -8,14 +8,20 @@ import Shh
 import Data.Monoid
 import Data.Char
 import Data.List
+import Control.Concurrent.Async
 
-$(loadEnv)
+-- Load everything...
+-- $(loadEnv)
 
--- We could also have been a little more explicit about it.
--- load ["sleep", "echo", "cat"]
+-- OR --
+
+-- We could also be a little more explicit about it.
+$(load SearchPath ["sleep", "echo", "cat"])
 
 main :: IO ()
 main = do
     -- Crash the program if we are missing any executables.
     [] <- missingExecutables
-    (sleep 1 >> echo "Hello" >> sleep 2) |> cat
+    concurrently_
+        ((sleep 1 >> echo "Hello" >> sleep 2) |> cat)
+        (echo "A" >> sleep 1 >> echo "b")

@@ -42,6 +42,7 @@ executable shh-example
   default-language: Haskell2010
   build-depends:
     base >=4.9,
+    async,
     shh
   hs-source-dirs: app
   main-is: Example.hs

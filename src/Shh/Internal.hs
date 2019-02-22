@@ -399,28 +399,34 @@ exe :: (Unit a, ExecArgs a) => String -> a
 exe s = toArgs [s]
 
 -- | Create a function for the executable named
-loadExe :: String -> Q [Dec]
-loadExe s = loadExeAs s s
+loadExe :: ExecReference -> String -> Q [Dec]
+loadExe ref s = loadExeAs ref s s
+
+-- | Specify how executables should be stored.
+data ExecReference
+    = Absolute -- ^ Find executables on PATH, but store their absolute
+    | SearchPath -- ^ Always search on PATH
 
 -- | @$(loadExeAs fnName executable)@ defines a function called @fnName@
 -- which executes the path in @executable@.
-loadExeAs :: String -> String -> Q [Dec]
-loadExeAs fnName executable =
+loadExeAs :: ExecReference -> String -> String -> Q [Dec]
+loadExeAs ref fnName executable =
     -- TODO: Can we place haddock markup in TH generated functions.
     -- TODO: Can we palce the man page for each function in there xD
     -- https://ghc.haskell.org/trac/ghc/ticket/5467
     let
         name = mkName $ fnName
-        impl = valD (varP name) (normalB [|
-            exe executable
+        impl executableRef = valD (varP name) (normalB [|
+            exe executableRef
             |]) []
         typn = mkName "a"
         typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
     in do
-        isExe <- runIO $ checkExecutable executable
-        when (not isExe) $ error $ "Attempted to load '" ++ executable ++ "', but it isn't executable"
-        i <- impl
-        return $ [typ,i]
+        runIO (Dir.findExecutable executable) >>= \case
+            Nothing -> error $ "Attempted to load '" ++ executable ++ "', but it is not executable"
+            Just absExe -> do
+                i <- impl (case ref of { Absolute -> absExe; SearchPath -> executable })
+                return $ [typ,i]
 
 -- | Checks if a String is a valid Haskell identifier.
 validIdentifier :: String -> Bool
@@ -441,8 +447,8 @@ validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotI
 -- are ignored. It also creates the IO action @missingExecutables@ which will
 -- do a runtime check to ensure all the executables that were found at
 -- compile time still exist.
-loadEnv :: Q [Dec]
-loadEnv = loadAnnotatedEnv id
+loadEnv :: ExecReference -> Q [Dec]
+loadEnv ref = loadAnnotatedEnv ref id
 
 -- | Test to see if an executable can be found either on the $PATH or absolute.
 checkExecutable :: FilePath -> IO Bool
@@ -451,14 +457,14 @@ checkExecutable = fmap isJust . Dir.findExecutable
 -- | Load the given executables into the program, checking their executability
 -- and creating a function @missingExecutables@ to do a runtime check for their
 -- availability.
-load :: [String] -> Q [Dec]
-load = loadAnnotated id
+load :: ExecReference -> [String] -> Q [Dec]
+load ref = loadAnnotated ref id
 
 -- | Same as `load`, but allows you to modify the function names.
-loadAnnotated :: (String -> String) -> [String] -> Q [Dec]
-loadAnnotated f bins = do
+loadAnnotated :: ExecReference -> (String -> String) -> [String] -> Q [Dec]
+loadAnnotated ref f bins = do
     let pairs = mapMaybe getAnnotation bins
-    ds <- fmap join $ mapM (uncurry loadExeAs) pairs
+    ds <- fmap join $ mapM (uncurry (loadExeAs ref)) pairs
     d <- valD (varP (mkName "missingExecutables")) (normalB [|
                 filterM (fmap not . checkExecutable) bins
             |]) []
@@ -473,10 +479,10 @@ loadAnnotated f bins = do
 
 -- | Like `loadEnv`, but allows you to modify the function name that would
 -- be generated.
-loadAnnotatedEnv :: (String -> String) -> Q [Dec]
-loadAnnotatedEnv f = do
+loadAnnotatedEnv :: ExecReference -> (String -> String) -> Q [Dec]
+loadAnnotatedEnv ref f = do
     bins <- runIO pathBins
-    loadAnnotated f bins
+    loadAnnotated ref f bins
 
 -- | Function that splits '\0' seperated list of strings. Useful in conjuction
 -- with @find . "-print0"@.

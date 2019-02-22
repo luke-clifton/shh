@@ -53,6 +53,7 @@ module Shh
     -- | == Constructing Arguments
     , ExecArg(..)
     -- | == Template Haskell helpers
+    , ExecReference(..)
     , load
     , loadEnv
     , loadAnnotated
