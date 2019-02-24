@@ -16,7 +16,7 @@ import Control.Concurrent.Async
 -- OR --
 
 -- We could also be a little more explicit about it.
-$(load SearchPath ["sleep", "echo", "cat"])
+$(load Absolute ["sleep", "echo", "cat", "xxd"])
 
 main :: IO ()
 main = do
@@ -24,4 +24,4 @@ main = do
     [] <- missingExecutables
     concurrently_
         ((sleep 1 >> echo "Hello" >> sleep 2) |> cat)
-        (echo "A" >> sleep 1 >> echo "b")
+        (echo "A" >> sleep 1 >> echo "b" |> xxd)

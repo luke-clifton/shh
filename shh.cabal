@@ -47,7 +47,8 @@ executable shh-example
   hs-source-dirs: app
   main-is: Example.hs
   build-tools:
-    coreutils
+    coreutils,
+    vim
   
 
 test-suite shh-tests
