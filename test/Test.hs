@@ -7,7 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-$(loadEnv)
+$(loadEnv SearchPath)
 
 main = do
     putStrLn "################################################"
