@@ -402,9 +402,9 @@ exe s = toArgs [s]
 loadExe :: ExecReference -> String -> Q [Dec]
 loadExe ref s = loadExeAs ref s s
 
--- | Specify how executables should be stored.
+-- | Specify how executables should be referenced.
 data ExecReference
-    = Absolute -- ^ Find executables on PATH, but store their absolute
+    = Absolute -- ^ Find executables on PATH, but store their absolute path
     | SearchPath -- ^ Always search on PATH
 
 -- | @$(loadExeAs fnName executable)@ defines a function called @fnName@

@@ -104,7 +104,7 @@ So, for example,
 Enable Temlpate Haskell and load the environment
 
     {-# LANGUAGE TemplateHaskell #-}
-    $(loadEnv)
+    $(loadEnv SearchPath)
 
 You now have all your executables available as simple to read
 Haskell functions.
