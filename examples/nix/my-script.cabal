@@ -1,0 +1,16 @@
+name:                my-script
+version:             0.1.0.0
+license:             BSD3
+license-file:        LICENSE
+author:              Luke Clifton
+maintainer:          lukec@themk.net
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+executable my-script
+  main-is:             my-script.hs
+  build-depends:       base >=4.12 && <4.13, shh
+  default-language:    Haskell2010
+  build-tools: ponysay, coreutils
+  ghc-options: -threaded -with-rtsopts=-N
