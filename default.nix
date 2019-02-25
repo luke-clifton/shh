@@ -1,2 +1,4 @@
 with import <nixpkgs> {};
-haskellPackages.callPackage ./shh.nix {}
+haskellPackages.callCabal2nix "shh" ./. {
+  inherit vault;
+}

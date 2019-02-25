@@ -48,6 +48,7 @@ executable shh-example
   main-is: Example.hs
   build-tools:
     coreutils,
+    vault,
     vim
   
 

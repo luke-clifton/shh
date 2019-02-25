@@ -1,2 +1,1 @@
-with import <nixpkgs> {};
-(haskellPackages.callPackage ./shh.nix {}).env
+(import ./default.nix).env
