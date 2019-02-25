@@ -7,7 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-$(loadEnv SearchPath)
+$(load SearchPath ["shasum", "xxd", "echo", "cat", "false", "mktemp", "sleep", "rm"])
 
 main = do
     putStrLn "################################################"

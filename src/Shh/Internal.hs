@@ -249,19 +249,19 @@ withReadWords = withRead' words
 -- | Read and write to a `Proc`...
 readWriteProc :: MonadIO io => Proc a -> String -> io String
 readWriteProc (Proc f) input = liftIO $ do
-    (ri,wi) <- createPipe
-    (ro,wo) <- createPipe
-    (_,o) <- concurrently
-        (concurrently
-            (f ri wo stderr (pure ()) (hClose wo `finally` hClose ri))
-            (hPutStr wi input `finally` hClose wi)
-        ) (do
-            output <- hGetContents ro
-            C.evaluate $ rnf output
-            hClose ro
-            pure output
-        )
-    pure o
+    withPipe $ \ri wi -> do
+        withPipe $ \ro wo -> do
+            (_,o) <- concurrently
+                (concurrently
+                    (f ri wo stderr (pure ()) (hClose wo `finally` hClose ri))
+                    (hPutStr wi input `finally` hClose wi)
+                ) (do
+                    output <- hGetContents ro
+                    C.evaluate $ rnf output
+                    hClose ro
+                    pure output
+                )
+            pure o
 
 -- | Some as `readWriteProc`. Apply a `Proc` to a `String`.
 --
@@ -273,10 +273,10 @@ apply = readWriteProc
 -- | Provide the stdin of a `Proc` from a `String`
 writeProc :: MonadIO io => Proc a -> String -> io a
 writeProc (Proc f) input = liftIO $ do
-    (r,w) <- createPipe
-    fst <$> concurrently
-        (f r stdout stderr (pure ()) (hClose r))
-        (hPutStr w input `finally` hClose w)
+    withPipe $ \r w ->
+        fst <$> concurrently
+            (f r stdout stderr (pure ()) (hClose r))
+            (hPutStr w input `finally` hClose w)
 
 -- | Flipped, infix version of `writeProc`
 (>>>) :: MonadIO io => String -> Proc a -> io a
