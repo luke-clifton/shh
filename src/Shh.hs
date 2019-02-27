@@ -48,6 +48,8 @@ module Shh
     , catchCode
     -- | == Constructing Arguments
     , ExecArg(..)
+    , ExecArgs()
+    , Unit()
     -- | == Template Haskell helpers
     , ExecReference(..)
     , load
