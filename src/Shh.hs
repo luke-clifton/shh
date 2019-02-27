@@ -10,10 +10,8 @@ module Shh
     , Proc()
     -- | == Piping and Redirection
     , PipeResult(..)
-    , (<|)
     , Stream(..)
     , devNull
-    -- | == Reading @stdout@
     -- === Lazy/Streaming reads
     -- These reads are lazy. The process is run long enough to produce
     -- the amount of output that is actually used. It is therefor suitable
@@ -21,7 +19,6 @@ module Shh
     -- as soon the function finishes. Note that the result is forced to
     -- normal form to prevent any accidental reading after the process has
     -- terminated.
-    , withRead
     , withReadSplit0
     , withReadLines
     , withReadWords
@@ -32,16 +29,15 @@ module Shh
     , readLines
     , readWords
     , readAuto
+    -- | === Writing to @stdin@
+    , (<<<), (>>>)
+    , readWriteProc
+    , apply
     -- | === String manipulation
     -- Utility functions for dealing with common string issues in shell
     -- scripting.
     , trim
     , split0
-    -- | == Writing to @stdin@
-    , writeProc
-    , (<<<), (>>>)
-    , readWriteProc
-    , apply
     -- | == Exceptions
     -- If any exception is allowed to propagate out of a pipeline, all the
     -- processes comprising the pipeline will be terminated. This is contrary

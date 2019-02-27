@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
@@ -13,7 +15,7 @@ module Shh.Internal where
 
 
 import Control.Concurrent.Async
-import Control.DeepSeq (rnf,force,NFData)
+import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
@@ -75,6 +77,10 @@ class PipeResult f where
     --       1       1       6
     (|>) :: Proc a -> Proc a -> f a
 
+    -- | Flipped version of `|>`
+    (<|) :: Proc a -> Proc a -> f a
+    (<|) = flip (|>)
+
     -- | Similar to `|!>` except that it connects stderr to stdin of the
     -- next process in the chain.
     --
@@ -96,15 +102,20 @@ class PipeResult f where
     -- > ls &!> StdOut
     (&!>) :: Proc a -> Stream -> f a
 
--- | Flipped version of `|>`
-(<|) :: PipeResult f => Proc a -> Proc a -> f a
-(<|) = flip (|>)
+    -- | Provide the stdin of a `Proc` from a `String`
+    writeProc :: Proc a -> String -> f a
+
+    -- | Run a process and capture it's output lazily. Once the continuation
+    -- is completed, the handles are closed, and the process is terminated.
+    withRead :: (NFData b) => Proc a -> (String -> IO b) -> f b
 
 instance PipeResult IO where
     a |> b = runProc $ a |> b
     a |!> b = runProc $ a |!> b
     a &> s = runProc $ a &> s
     a &!> s = runProc $ a &!> s
+    writeProc p s = runProc $ writeProc p s
+    withRead p k = runProc $ withRead p k
 
 -- | Create a pipe, and close both ends on exception.
 withPipe :: (Handle -> Handle -> IO a) -> IO a
@@ -144,7 +155,17 @@ instance PipeResult Proc where
         withBinaryFile path WriteMode $ \h -> f i o h pl pw
     (Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
         withBinaryFile path AppendMode $ \h -> f i o h pl pw
-    
+
+    writeProc (Proc f) input = Proc $ \_ o e pl pw -> do
+        withPipe $ \r w ->
+            fst <$> concurrently
+                (f r o e pl (pw `finally` hClose r))
+                (hPutStr w input `finally` hClose w)
+
+    withRead (Proc f) k = Proc $ \i _ e pl pw -> do
+        withPipe $ \r w -> do
+            withAsync (f i w e pl (hClose w `finally` pw)) $ \_ ->
+                (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
 
 -- | Type used to represent destinations for redirects. @`Truncate` file@
 -- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.
@@ -214,54 +235,36 @@ mkProc cmd args = Proc $ \i o e pl pw -> do
             (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
 
 
--- | Read the stdout of a `Proc` in any `MonadIO` (including other `Proc`s).
+-- | Read the stdout of a `Proc`. This captures stdout, so further piping will
+-- not see anything on the input.
+--
 -- This is strict, so the whole output is read into a `String`. See `withRead`
 -- for a lazy version that can be used for streaming.
-readProc :: MonadIO io => Proc a -> io String
+readProc :: PipeResult io => Proc a -> io String
 readProc p = withRead p pure
 
--- | Run a process and capture it's output lazily. Once the continuation
--- is completed, the handles are closed, and the process is terminated.
-withRead :: (NFData b, MonadIO io) => Proc a -> (String -> IO b) -> io b
-withRead (Proc f) k = liftIO $ 
-    withPipe $ \r w -> do
-        withAsync (f stdin w stderr (pure ()) (hClose w)) $ \_ ->
-            (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
-
 -- | Apply a transformation function to the string before the IO action.
-withRead' :: (NFData b, MonadIO io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
+withRead' :: (NFData b, PipeResult io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
 withRead' f p io = withRead p (io . f)
 
 -- | Like @'withRead'@ except it splits the string with @'split0'@ first.
-withReadSplit0 :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadSplit0 :: (NFData b, PipeResult io) => Proc a -> ([String] -> IO b) -> io b
 withReadSplit0 = withRead' split0
 
 -- | Like @'withRead'@ except it splits the string with @'lines'@ first.
 --
 -- NB: Please consider using @'withReadSplit0'@ where you can.
-withReadLines :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadLines :: (NFData b, PipeResult io) => Proc a -> ([String] -> IO b) -> io b
 withReadLines = withRead' lines
 
 -- | Like @'withRead'@ except it splits the string with @'words'@ first.
-withReadWords :: (NFData b, MonadIO io) => Proc a -> ([String] -> IO b) -> io b
+withReadWords :: (NFData b, PipeResult io) => Proc a -> ([String] -> IO b) -> io b
 withReadWords = withRead' words
 
--- | Read and write to a `Proc`...
+-- | Read and write to a `Proc`. Same as
+-- @readProc proc <<< input@
 readWriteProc :: MonadIO io => Proc a -> String -> io String
-readWriteProc (Proc f) input = liftIO $ do
-    withPipe $ \ri wi -> do
-        withPipe $ \ro wo -> do
-            (_,o) <- concurrently
-                (concurrently
-                    (f ri wo stderr (pure ()) (hClose wo `finally` hClose ri))
-                    (hPutStr wi input `finally` hClose wi)
-                ) (do
-                    output <- hGetContents ro
-                    C.evaluate $ rnf output
-                    hClose ro
-                    pure output
-                )
-            pure o
+readWriteProc p input = liftIO $ readProc p <<< input
 
 -- | Some as `readWriteProc`. Apply a `Proc` to a `String`.
 --
@@ -270,21 +273,13 @@ readWriteProc (Proc f) input = liftIO $ do
 apply :: MonadIO io => Proc a -> String -> io String
 apply = readWriteProc
 
--- | Provide the stdin of a `Proc` from a `String`
-writeProc :: MonadIO io => Proc a -> String -> io a
-writeProc (Proc f) input = liftIO $ do
-    withPipe $ \r w ->
-        fst <$> concurrently
-            (f r stdout stderr (pure ()) (hClose r))
-            (hPutStr w input `finally` hClose w)
-
 -- | Flipped, infix version of `writeProc`
-(>>>) :: MonadIO io => String -> Proc a -> io a
+(>>>) :: PipeResult io => String -> Proc a -> io a
 (>>>) = flip writeProc
 
 
 -- | Infix version of `writeProc`
-(<<<) :: MonadIO io => Proc a -> String -> io a
+(<<<) :: PipeResult io => Proc a -> String -> io a
 (<<<) = writeProc
 
 -- | What on a given `ProcessHandle`, and throw an exception of
@@ -333,7 +328,7 @@ catchCode = fmap getCode . catchFailure
         getCode (Left  f) = failureCode f
 
 -- | Like `readProc`, but trim leading and tailing whitespace.
-readTrim :: MonadIO io => Proc a -> io String
+readTrim :: (Functor io, PipeResult io) => Proc a -> io String
 readTrim = fmap trim . readProc
 
 -- | A class for things that can be converted to arguments on the command
