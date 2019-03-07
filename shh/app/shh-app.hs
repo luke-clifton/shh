@@ -19,7 +19,7 @@ defaultShell = "\
 defaultInitGhci = "\
 \import Shh\n\
 \import Shh.Prompt\n\
-\:set prompt-function promptFormat \"[%u@%h:%w]$ \"\n\
+\:set prompt-function promptFormat \"\\n\\ESC[1;32m[%u@%h:%w]λ \\ESC[0m\"\n\
 \ "
 
 
@@ -53,7 +53,6 @@ main = do
     debug $ "Shh home is: " <> shhDir
 
     createDirectoryIfMissing False shhDir
-    createDirectoryIfMissing False (shhDir <> "/shell")
 
     withCurrentDirectory shhDir $ do
         writeIfMissing "init.ghci" defaultInitGhci

@@ -6,6 +6,8 @@
 Shh is a library to enable convinient shell-like programming in Haskell.
 It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 
+It is also a wrapper tool around launching GHCi as a shell.
+
 It supports
 
  * Automatically defining a function for each executable on your `$PATH`
@@ -120,7 +122,31 @@ that read from stdin) when running in GHCi, you will need to run the
 `initInteractive` function. This sets the line buffering appropriately and
 ensures the terminal is in canonical mode.
 
+### Shh as a Shell
+
+There is a tool called `shh` which is a fairly small wrapper around launching
+GHCi which automatically loads your environment and allows you to have custom
+config when using GHCi as a shell.
+
+The `shh` binary will look in your `$SHH_DIR` (defaults to `$HOME/.shh`) for
+a `Shell.hs`, `init.ghci` and `wrapper` files. If these don't exist default
+ones will be created.
+
+The `Shell.hs` file should contain any top level definitions that you would
+like to be available in your Shell. By default it loads your environment.
+
+The `init.ghci` file is loaded by GHCi after your `.ghci` files. This lets
+you specify settings that you want to take effect when using GHCi as a shell.
+By default it sets a shell-like prompt.
+
+The `wrapper` file is an executable that is called with the command that is
+to be executed. By default it just calls `exec` with the arguments passed to
+it. The use-case for this is to be able to set up the environment for `shh`.
+You might, for example, wrap the execution in a `nix-shell`. Either way,
+it is up to you to make sure that the compiler, and packages you require are
+available, either globally, or provided by the `wrapper` script.
+
 ### Script Usage
 
-TODO: Fill this in once on Hackage.
+TODO: Fill this in once the user experience is better.
     

@@ -9,7 +9,7 @@ license:             BSD3
 license-file:        LICENSE
 author:              Luke Clifton
 maintainer:          lukec@themk.net
-copyright:           (c) 2018 Luke Clifton
+copyright:           (c) 2018, 2019 Luke Clifton
 category:            System
 build-type:          Simple
 extra-source-files:  ChangeLog.md, README.md

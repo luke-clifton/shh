@@ -7,7 +7,7 @@ let
   f = { mkDerivation, async, base, coreutils, deepseq, directory
       , filepath, hashable, mtl, perl, process, split, stdenv, tasty
       , tasty-hunit, tasty-quickcheck, template-haskell, temporary, unix
-      , vim
+      , vim, hostname
       }:
       mkDerivation {
         pname = "shh";
@@ -17,7 +17,7 @@ let
         isExecutable = true;
         libraryHaskellDepends = [
           async base deepseq directory filepath mtl process split
-          template-haskell unix
+          template-haskell unix hostname
         ];
         executableHaskellDepends = [
           async base directory hashable split temporary
