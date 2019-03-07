@@ -17,7 +17,7 @@ let
         isExecutable = true;
         libraryHaskellDepends = [
           async base deepseq directory filepath mtl process split
-          template-haskell unix hostname
+          template-haskell unix hostname temporary
         ];
         executableHaskellDepends = [
           async base directory hashable split temporary
