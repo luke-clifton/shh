@@ -5,4 +5,4 @@ ghc:
 
 install: echo Nope
 
-script: cabal new-build all --enable-tests
+script: cabal new-build all --enable-tests && cabal new-test all
