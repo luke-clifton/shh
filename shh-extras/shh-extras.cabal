@@ -19,6 +19,6 @@ source-repository head
 
 library
   exposed-modules: Shh.Prompt
-  build-depends:       base >=4.12 && <4.13, shh, hostname
+  build-depends:       base >=4.11 && <4.13, shh, hostname
   hs-source-dirs:      src
   default-language:    Haskell2010
