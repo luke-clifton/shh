@@ -101,6 +101,19 @@ So, for example,
     ls &!> StdOut  Redirect stderr of `ls` to wherever stdout is going.
     StdOut <!& ls  Same as above
 
+## Globbing
+
+Currently Shh does not have any built in globbing support. Rather, it is
+currently suggested to use another library to do globbing. For example,
+using the [Glob](http://hackage.haskell.org/package/Glob) package, it is
+possible to do something like
+
+    wc =<< glob "*.md"
+
+Certainly more verbose than the Bash equivalent, however, also more explicit,
+which is probably a good thing. If this turns out to be too cumbersome, we
+might introduce a more succinct globbing feature.
+
 ## Usage
 
 Enable Temlpate Haskell and load the environment
