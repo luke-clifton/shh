@@ -1,6 +1,9 @@
 # Shh
 
-[![](https://img.shields.io/hackage/v/shh.svg?colorB=%23999)](http://hackage.haskell.org/package/shh)
+https://img.shields.io/hackage/v/shh.svg?label=shh
+
+[![](https://img.shields.io/hackage/v/shh.svg?colorB=%23999&label=shh)](http://hackage.haskell.org/package/shh)
+[![](https://img.shields.io/hackage/v/shh.svg?colorB=%23999&label=shh-extras)](http://hackage.haskell.org/package/shh-extras)
 [![](https://travis-ci.org/luke-clifton/shh.svg?branch=master)](https://travis-ci.org/luke-clifton/shh)
 
 Shh is a library to enable convinient shell-like programming in Haskell.
