@@ -112,7 +112,8 @@ possible to do something like
 
 Certainly more verbose than the Bash equivalent, however, also more explicit,
 which is probably a good thing. If this turns out to be too cumbersome, we
-might introduce a more succinct globbing feature.
+might introduce a more succinct globbing feature, though it will always be
+explicit, and thus always more verbose than most other shells.
 
 ## Usage
 
