@@ -71,7 +71,5 @@ sanity() {
     fi
 }
 
-sanity shh
-
 upload shh
 upload shh-extras
