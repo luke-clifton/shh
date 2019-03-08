@@ -449,8 +449,12 @@ validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotI
 -- are ignored. It also creates the IO action @missingExecutables@ which will
 -- do a runtime check to ensure all the executables that were found at
 -- compile time still exist.
+--
+-- Note: If an executable named @cd@ is discovered, this will load it as @cd'@
 loadEnv :: ExecReference -> Q [Dec]
-loadEnv ref = loadAnnotatedEnv ref id
+loadEnv ref = loadAnnotatedEnv ref $ \case
+    "cd" -> "cd'"
+    x    -> x
 
 -- | Test to see if an executable can be found either on the $PATH or absolute.
 checkExecutable :: FilePath -> IO Bool

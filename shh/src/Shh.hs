@@ -59,6 +59,17 @@ module Shh
     , loadAnnotatedEnv
     , loadExe
     , loadExeAs
+    -- | = Builtins
+    , cd
     ) where
 
 import Shh.Internal
+import System.Directory
+import System.Environment
+
+-- | Mimics the shell builtin "cd".
+cd :: FilePath -> IO ()
+cd p = do
+    setCurrentDirectory p
+    a <- getCurrentDirectory
+    setEnv "PWD" a
