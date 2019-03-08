@@ -219,14 +219,17 @@ runProc :: Proc a -> IO a
 runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())
 
 -- | Create a `Proc` from a command and a list of arguments.
-mkProc :: String -> [String] -> Proc ()
-mkProc cmd args = Proc $ \i o e pl pw -> do
+-- The boolean represents whether we should delegate control-c
+-- or not. Most uses of @`mkProc'`@ in Shh do not delegate control-c.
+mkProc' :: Bool -> String -> [String] -> Proc ()
+mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
     bracket
         (createProcess_ cmd (proc cmd args)
             { std_in = UseHandle i
             , std_out = UseHandle o
             , std_err = UseHandle e
             , close_fds = True
+            , delegate_ctlc = delegate
             }
         )
         (\(_,_,_,ph) -> terminateProcess ph)
@@ -234,6 +237,10 @@ mkProc cmd args = Proc $ \i o e pl pw -> do
             pl
             (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
 
+-- | Create a `Proc` from a command and a list of arguments. Does not delegate
+-- control-c handling.
+mkProc :: String -> [String] -> Proc ()
+mkProc = mkProc' False
 
 -- | Read the stdout of a `Proc`. This captures stdout, so further piping will
 -- not see anything on the input.

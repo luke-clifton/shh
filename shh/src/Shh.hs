@@ -6,6 +6,7 @@ module Shh
     -- created for you by using the `loadEnv` template Haskell function.
     , exe
     , mkProc
+    , mkProc'
     , runProc
     , Proc()
     -- | == Piping and Redirection

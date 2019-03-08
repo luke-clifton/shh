@@ -48,8 +48,8 @@ main = do
         Just s -> pure s
 
     let
-        wrapped :: (Unit a, ExecArgs a) => a
-        wrapped = exe (shhDir <> "/wrapper")
+        wrapper :: String
+        wrapper = shhDir <> "/wrapper"
 
 
     debug $ "Shh home is: " <> shhDir
@@ -66,5 +66,5 @@ main = do
             emptyPermissions
         writeIfMissing "Shell.hs" defaultShell
 
-    wrapped "ghci" "-ghci-script" (shhDir <> "/init.ghci") (shhDir <> "/Shell.hs")
+    runProc $ mkProc' True wrapper ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"]
 

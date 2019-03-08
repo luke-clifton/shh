@@ -1,5 +1,5 @@
 name:                shh
-version:             0.2.0.4
+version:             0.2.0.5
 synopsis:            Simple shell scripting from Haskell
 description:         Provides a shell scripting environment for Haskell. It
                      helps you all external binaries, and allows you to
