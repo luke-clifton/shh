@@ -523,6 +523,7 @@ cd' p = do
     a <- Dir.getCurrentDirectory
     setEnv "PWD" a
 
+-- | Helper class for variable number of arguments to @cd@ builtin.
 class Cd a where
     -- | Mimics the shell builtin "cd"
     cd :: a
