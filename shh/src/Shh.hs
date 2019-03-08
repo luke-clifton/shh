@@ -80,8 +80,8 @@ class Cd a where
     -- | Mimics the shell builtin "cd"
     cd :: a
 
-instance (a ~ IO ()) => Cd a where
+instance (io ~ IO ()) => Cd io where
     cd = getEnv "HOME" >>= cd'
 
-instance {-# OVERLAPS #-} (a ~ IO ()) => Cd (FilePath -> a) where
+instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
     cd = cd'
