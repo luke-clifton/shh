@@ -20,7 +20,7 @@ defaultInitGhci = "\
 \:seti -XNoOverloadedLists\n\
 \import Shh\n\
 \import Shh.Prompt\n\
-\:set prompt-function promptFormat \"\\n\\ESC[1;32m[%u@%h:%w]λ \\ESC[0m\"\n\
+\:set prompt-function formatPrompt \"\\n\\ESC[1;32m[%u@%h:%w]λ \\ESC[0m\"\n\
 \:set prompt-cont \"| \"\n\
 \ "
 
