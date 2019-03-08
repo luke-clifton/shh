@@ -1,0 +1,17 @@
+image: nixos/18.09
+repositories:
+  nixpkgs: https://nixos.org/channels/nixos-18.09-small
+packages:
+  - nixpkgs.haskellPackages.cabal-install
+sources:
+  - https://github.com/luke-clifton/shh
+tasks:
+- build: |
+    cd shh
+    nix-shell --command "cabal new-build all"
+- test: |
+    cd shh
+    nix-shell --command "cabal new-test all"
+- docs: |
+    cd shh
+    nix-shell --command "cabal new-haddock all"
