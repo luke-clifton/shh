@@ -8,7 +8,7 @@ hackageVersion() {
 }
 
 localVersion() {
-    cat "$1/$1.cabal" | grep '^version:' | tr -d '[:space:]' | cut -d: -f2
+    grep '^version:' "$1/$1.cabal" | tr -d '[:space:]' | cut -d: -f2
 }
 
 needsUpload() {
@@ -27,7 +27,7 @@ upload() {
         then
             toupload="$1-$(localVersion "$1")"
             echo "Uploading $toupload"
-            read -p 'continue? (type "yes") ' answer
+            read -rp 'continue? (type "yes") ' answer
             if ! [ "$answer" = "yes" ]
             then
                 exit 1
@@ -35,8 +35,8 @@ upload() {
             tmp=$(mktemp -d)
             cabal new-sdist --verbose=0 --builddir="$tmp" "$1"
             cabal new-haddock --haddock-for-hackage --builddir="$tmp" "$1"
-            cabal upload --publish "$tmp"/sdist/"${toupload}.tar.gz"
-            cabal upload --publish -d "$tmp"/"${toupload}"-docs.tar.gz
+            cabal upload --publish "$tmp/sdist/${toupload}.tar.gz"
+            cabal upload --publish -d "$tmp/${toupload}-docs.tar.gz"
             git tag -a "$toupload" -m "Releaseing $toupload"
             git push origin "$toupload"
         else
@@ -61,6 +61,8 @@ codeMatch() {
 }
 
 sanity() {
+    git diff --exit-code || return 1
+    git diff --cached --exit-code || return 1
     cabal new-build "$1" || return 1
     cabal new-test "$1" || return 1
     if cabal new-haddock --haddock-for-hackage "$1" | grep -A 5 'Missing documentation'
@@ -68,6 +70,8 @@ sanity() {
         return 1
     fi
 }
+
+sanity shh
 
 upload shh
 upload shh-extras
