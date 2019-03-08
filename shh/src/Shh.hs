@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 -- | Shh provides a shell-like environment for Haskell.
 module Shh
     ( initInteractive
@@ -68,8 +70,18 @@ import System.Directory
 import System.Environment
 
 -- | Mimics the shell builtin "cd".
-cd :: FilePath -> IO ()
-cd p = do
+cd' :: FilePath -> IO ()
+cd' p = do
     setCurrentDirectory p
     a <- getCurrentDirectory
     setEnv "PWD" a
+
+class Cd a where
+    -- | Mimics the shell builtin "cd"
+    cd :: a
+
+instance (a ~ IO ()) => Cd a where
+    cd = getEnv "HOME" >>= cd'
+
+instance {-# OVERLAPS #-} (a ~ IO ()) => Cd (FilePath -> a) where
+    cd = cd'
