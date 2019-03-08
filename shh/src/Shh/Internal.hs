@@ -25,7 +25,7 @@ import Data.List.Split (endBy, splitOn)
 import Data.Maybe (mapMaybe, isJust)
 import Language.Haskell.TH
 import qualified System.Directory as Dir
-import System.Environment (getEnv)
+import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
 import System.IO
 import System.Posix.Signals
@@ -515,3 +515,20 @@ readWords p = withReadWords p pure
 -- | Like `readProc`, but attempts to `Prelude.read` the result.
 readAuto :: Read a => Proc () -> IO a
 readAuto p = read <$> readProc p
+
+-- | Mimics the shell builtin "cd".
+cd' :: FilePath -> IO ()
+cd' p = do
+    Dir.setCurrentDirectory p
+    a <- Dir.getCurrentDirectory
+    setEnv "PWD" a
+
+class Cd a where
+    -- | Mimics the shell builtin "cd"
+    cd :: a
+
+instance (io ~ IO ()) => Cd io where
+    cd = getEnv "HOME" >>= cd'
+
+instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
+    cd = cd'

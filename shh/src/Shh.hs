@@ -66,22 +66,3 @@ module Shh
     ) where
 
 import Shh.Internal
-import System.Directory
-import System.Environment
-
--- | Mimics the shell builtin "cd".
-cd' :: FilePath -> IO ()
-cd' p = do
-    setCurrentDirectory p
-    a <- getCurrentDirectory
-    setEnv "PWD" a
-
-class Cd a where
-    -- | Mimics the shell builtin "cd"
-    cd :: a
-
-instance (io ~ IO ()) => Cd io where
-    cd = getEnv "HOME" >>= cd'
-
-instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
-    cd = cd'
