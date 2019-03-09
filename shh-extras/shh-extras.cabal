@@ -26,3 +26,13 @@ library
     hostname
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+test-suite shh-extra-tests
+  ghc-options: -threaded -with-rtsopts=-N
+  default-language: Haskell2010
+  build-depends:
+    base >=4.9,
+    tasty
+  hs-source-dirs: test
+  main-is: Test.hs
+  type: exitcode-stdio-1.0
