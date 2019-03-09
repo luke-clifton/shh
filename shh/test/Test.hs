@@ -7,7 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-$(load SearchPath ["shasum", "xxd", "echo", "cat", "false", "mktemp", "sleep", "rm"])
+$(load SearchPath ["tr", "echo", "cat", "false", "mktemp", "sleep", "rm"])
 
 main = do
     putStrLn "################################################"
@@ -48,14 +48,14 @@ unitTests = testGroup "Unit tests"
         rm t
         "test\ntest\n" @?= r
     , testCase "Long pipe" $ do
-        r <- readProc $ echo "test" |> shasum |> shasum |> shasum
-        r @?= "3f18e7bc4021e72e52fc1395ece85d82f912a74a  -\n"
+        r <- readProc $ echo "test" |> tr "-d" "e" |> tr "-d" "s"
+        r @?= "tt\n"
     , testCase "Pipe stderr" $ do
         r <- readProc $ echo "test" &> StdErr |!> cat
         r @?= "test\n"
     , testCase "Lazy read" $ do
-        withRead (cat "/dev/urandom" |> xxd) $ \s -> do
-            take 6 s @?= "000000"
+        withRead (cat "/dev/urandom" |> tr "-C" "-d" "a") $ \s -> do
+            take 6 s @?= "aaaaaa"
     , testCase "Multiple outputs" $ do
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
@@ -71,8 +71,8 @@ unitTests = testGroup "Unit tests"
         r <- readProc (cat t)
         r @?= "Goodbye"
     , testCase "apply" $ do
-        r <- apply shasum "test"
-        r @?= "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3  -\n"
+        r <- apply (tr "-d" "es") "test"
+        r @?= "tt"
     , testCase "ignoreFailure" $ do
         r <- readProc $ ignoreFailure false |> echo "Hello"
         r @?= "Hello\n"
