@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 name:                shh-extras
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Utility functions for using shh
 description:         Provides useful functions for setting up Shh as an
                      interactive shell.
