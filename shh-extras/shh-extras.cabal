@@ -34,5 +34,5 @@ test-suite shh-extra-tests
     base >=4.9,
     tasty
   hs-source-dirs: test
-  main-is: Test.hs
+  main-is: Main.hs
   type: exitcode-stdio-1.0
