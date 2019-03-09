@@ -55,9 +55,11 @@ upload() {
 codeMatch() {
     tmp=$(mktemp -d)
     cabal new-sdist --verbose=0 --builddir="$tmp" "$1"
-    cmp -s "$tmp"/sdist/*.tar.gz \
+    cmp -s -c "$tmp"/sdist/*.tar.gz \
         <(curl -fsS "https://hackage.haskell.org/package/$1/$1-$(hackageVersion "$1").tar.gz")
+    a=$?
     rm -Rf "$tmp"
+    return "$a"
 }
 
 sanity() {
