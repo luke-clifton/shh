@@ -6,6 +6,7 @@ import Shh
 import System.Environment
 import Network.HostName
 import Data.Time
+import Data.List
 
 -- | The type of GHCi prompt functions
 type PromptFn = [String] -> Int -> IO String
@@ -35,7 +36,7 @@ formatPrompt fmt _ _ = do
             format :: String -> IO String
             format ('%' : '%' : rest) = ('%':) <$> format rest
             format ('%' : 'u' : rest) = insertEnv "USER" rest
-            format ('%' : 'w' : rest) = insertEnv "PWD" rest
+            format ('%' : 'w' : rest) = insertIO prettyPwd rest
             format ('%' : 'h' : rest) = insertIO getHostName rest
             format ('%' : 't' : rest) = insertIO getTime rest
             format ( x  : rest) = (x:) <$> format rest
@@ -51,3 +52,12 @@ formatPrompt fmt _ _ = do
             getTime = formatTime defaultTimeLocale "%H:%M:%S" <$>
                 (utcToLocalTime <$> getCurrentTimeZone <*> getCurrentTime)
 
+            prettyPwd :: IO String
+            prettyPwd = do
+                pwd  <- getEnv "PWD"
+                home <- getEnv "HOME"
+                if home `isPrefixOf` pwd
+                then
+                    pure $ "~" <> drop (length home) pwd
+                else
+                    pure pwd
