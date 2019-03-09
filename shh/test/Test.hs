@@ -6,6 +6,7 @@ import Shh
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Control.Exception
 
 $(load SearchPath ["tr", "echo", "cat", "false", "mktemp", "sleep", "rm"])
 
@@ -26,6 +27,9 @@ properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
     ]
 
+withTmp :: (FilePath -> IO a) -> IO a
+withTmp = bracket (readTrim mktemp) rm
+
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
     [ testCase "Read stdout" $ do
@@ -34,18 +38,14 @@ unitTests = testGroup "Unit tests"
     , testCase "Redirect to /dev/null" $ do
         l <- readProc $ echo "test" &> devNull
         l @?= ""
-    , testCase "Redirect to file (Truncate)" $ do
-        t <- trim <$> readProc mktemp
+    , testCase "Redirect to file (Truncate)" $ withTmp $ \t -> do
         echo "test" &> Truncate t
         r <- readProc $ cat t
-        rm t
         "test\n" @?= r
-    , testCase "Redirect to file (Append)" $ do
-        t <- readTrim mktemp
+    , testCase "Redirect to file (Append)" $ withTmp $ \t -> do
         echo "test" &> Truncate t
         echo "test" &> Append t
         r <- readProc $ cat t
-        rm t
         "test\ntest\n" @?= r
     , testCase "Long pipe" $ do
         r <- readProc $ echo "test" |> tr "-d" "e" |> tr "-d" "s"
@@ -62,8 +62,7 @@ unitTests = testGroup "Unit tests"
     , testCase "Terminate upstream processes" $ do
         Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
         x @?= Shh.Failure "false" ["dummy"] 1
-    , testCase "Write to process" $ do
-        t <- readTrim mktemp
+    , testCase "Write to process" $ withTmp $ \t -> do
         writeProc (cat &> Truncate t) "Hello"
         r <- readProc (cat t)
         r @?= "Hello"
