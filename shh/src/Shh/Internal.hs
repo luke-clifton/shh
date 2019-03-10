@@ -13,7 +13,6 @@
 -- | See documentation for "Shh".
 module Shh.Internal where
 
-
 import Control.Concurrent.Async
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
@@ -106,7 +105,10 @@ class PipeResult f where
     writeProc :: Proc a -> String -> f a
 
     -- | Run a process and capture it's output lazily. Once the continuation
-    -- is completed, the handles are closed, and the process is terminated.
+    -- is completed, the handles are closed. However, the process is run
+    -- until it naturally terminates in order to capture the correct exit
+    -- code. Many utilities behave correctly with this (e.g. @cat@ will
+    -- terminate if you close the handle).
     withRead :: (NFData b) => Proc a -> (String -> IO b) -> f b
 
 instance PipeResult IO where
@@ -128,18 +130,18 @@ withPipe k =
 instance PipeResult Proc where
     (Proc a) |> (Proc b) = Proc $ \i o e pl pw ->
         withPipe $ \r w -> do
-            a' <- async $ a i w e (pure ()) (hClose w)
-            b' <- async $ b r o e (pure ()) (hClose r)
-            link2 a' b'
-            (_, br) <- (pl >> waitBoth a' b') `finally` pw
+            let
+                a' = a i w e (pure ()) (hClose w)
+                b' = b r o e (pure ()) (hClose r)
+            (_, br) <- (pl >> concurrently a' b') `finally` pw
             pure br
 
     (Proc a) |!> (Proc b) = Proc $ \i o e pl pw -> do
         withPipe $ \r w -> do
-            a' <- async $ a i o w (pure ()) (hClose w)
-            b' <- async $ b r o e (pure ()) (hClose r)
-            link2 a' b'
-            (_, br) <- (pl >> waitBoth a' b') `finally` pw
+            let
+                a' = a i o w (pure ()) (hClose w)
+                b' = b r o e (pure ()) (hClose r)
+            (_, br) <- (pl >> concurrently a' b') `finally` pw
             pure br
 
     p &> StdOut = p
@@ -164,8 +166,10 @@ instance PipeResult Proc where
 
     withRead (Proc f) k = Proc $ \i _ e pl pw -> do
         withPipe $ \r w -> do
-            withAsync (f i w e pl (hClose w `finally` pw)) $ \_ ->
-                (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
+            withAsync (f i w e pl (hClose w `finally` pw)) $ \a -> do
+                rr <- (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
+                _ <- wait a
+                pure rr
 
 -- | Type used to represent destinations for redirects. @`Truncate` file@
 -- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.
@@ -289,7 +293,7 @@ apply = readWriteProc
 (<<<) :: PipeResult io => Proc a -> String -> io a
 (<<<) = writeProc
 
--- | What on a given `ProcessHandle`, and throw an exception of
+-- | Wait on a given `ProcessHandle`, and throw an exception of
 -- type `Failure` if it's exit code is non-zero (ignoring SIGPIPE)
 waitProc :: String -> [String] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case

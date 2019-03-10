@@ -7,8 +7,9 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Control.Exception
+import Control.Monad
 
-$(load SearchPath ["tr", "echo", "cat", "false", "mktemp", "sleep", "rm"])
+$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm"])
 
 main = do
     putStrLn "################################################"
@@ -72,7 +73,22 @@ unitTests = testGroup "Unit tests"
     , testCase "apply" $ do
         r <- apply (tr "-d" "es") "test"
         r @?= "tt"
-    , testCase "ignoreFailure" $ do
+    , testCase "ignoreFailure" $ replicateM_ 30 $ do
         r <- readProc $ ignoreFailure false |> echo "Hello"
         r @?= "Hello\n"
+    , testCase "Read failure" $ replicateM_ 30 $ do
+        Left r <- catchFailure $ readProc $ false "dummy"
+        r @?= Shh.Failure "false" ["dummy"] 1
+    , testCase "Read failure chain start" $ replicateM_ 30 $ do
+        Left r <- catchFailure $ readProc $ false "dummy" |> echo "test" |> true
+        r @?= Shh.Failure "false" ["dummy"] 1
+    , testCase "Read failure chain middle" $ replicateM_ 30 $ do
+        Left r <- catchFailure $ readProc $ echo "test" |> false "dummy" |> true
+        r @?= Shh.Failure "false" ["dummy"] 1
+    , testCase "Read failure chain end" $ replicateM_ 30 $ do
+        Left r <- catchFailure $ readProc $ echo "test" |> true |> false "dummy"
+        r @?= Shh.Failure "false" ["dummy"] 1
+    , testCase "Lazy read checks code" $ replicateM_ 30 $ do
+        Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . take 3
+        r @?= Shh.Failure "false" ["dummy"] 1
     ]
