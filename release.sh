@@ -37,7 +37,7 @@ upload() {
             cabal new-haddock --haddock-for-hackage --builddir="$tmp" "$1"
             cabal upload --publish "$tmp/sdist/${toupload}.tar.gz"
             cabal upload --publish -d "$tmp/${toupload}-docs.tar.gz"
-            git tag -a "$toupload" -m "Releaseing $toupload"
+            git tag -a "$toupload" -m "Releasing $toupload"
             git push origin "$toupload"
         else
             echo "$1 has issues, not uploading"
