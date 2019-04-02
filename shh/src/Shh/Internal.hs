@@ -19,13 +19,15 @@ import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Char (isLower, isSpace, isAlphaNum)
-import Data.List (nub, dropWhileEnd, intercalate)
+import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
+import qualified Data.Map as Map
 import Data.Maybe (mapMaybe, isJust)
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
+import System.FilePath (takeFileName)
 import System.IO
 import System.Posix.Signals
 import System.Process
@@ -390,11 +392,20 @@ instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
 --
 -- TODO: Check for executability.
 pathBins :: IO [FilePath]
-pathBins = do
+pathBins = map takeFileName <$> pathBinsAbs
+
+pathBinsAbs :: IO [FilePath]
+pathBinsAbs = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM Dir.doesDirectoryExist pathsVar
-    ps <- nub . concat <$> mapM Dir.getDirectoryContents paths
-    filterM checkExecutable ps
+    ps <- ordNubOn takeFileName . concat <$> mapM (\d -> fmap (\x -> d++('/':x)) <$> Dir.getDirectoryContents d) paths
+    filterM (fmap Dir.executable . Dir.getPermissions) ps
+
+    where
+        ordNubOn :: Ord b => (a -> b) -> [a] -> [a]
+        ordNubOn f as = map snd . Map.toList . Map.fromListWith const $ zip (map f as) as
+
+
 
 -- | Execute the given command. Further arguments can be passed in.
 --
