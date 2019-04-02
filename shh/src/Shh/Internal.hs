@@ -403,6 +403,7 @@ pathBinsAbs = do
     filterM (fmap Dir.executable . Dir.getPermissions) ps
 
     where
+        -- TODO: Eventually replace this with nubOrdOn (containers 0.6.0.1 dep)
         ordNubOn :: Ord b => (a -> b) -> [a] -> [a]
         ordNubOn f as = map snd . Map.toList . Map.fromListWith const $ zip (map f as) as
 
