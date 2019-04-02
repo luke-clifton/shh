@@ -388,12 +388,13 @@ class Unit a
 instance {-# OVERLAPPING #-} Unit b => Unit (a -> b)
 instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
 
--- | Get all files in a directory on your `$PATH`.
---
--- TODO: Check for executability.
+-- | Get all executables on your `$PATH`.
 pathBins :: IO [FilePath]
 pathBins = map takeFileName <$> pathBinsAbs
 
+-- | Get all uniquely named executables on your `$PATH` as absolute
+-- file names. The uniqueness is determined by the filename, and not
+-- the whole path. First one found wins.
 pathBinsAbs :: IO [FilePath]
 pathBinsAbs = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
