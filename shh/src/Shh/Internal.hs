@@ -407,8 +407,6 @@ pathBinsAbs = do
         ordNubOn :: Ord b => (a -> b) -> [a] -> [a]
         ordNubOn f as = map snd . Map.toList . Map.fromListWith const $ zip (map f as) as
 
-
-
 -- | Execute the given command. Further arguments can be passed in.
 --
 -- > exe "ls" "-l"
@@ -459,7 +457,7 @@ validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotI
             , "as", "case", "of", "class", "data", "default", "deriving"
             , "instance", "forall", "foreign", "hiding", "infix", "infixl"
             , "infixr", "mdo", "module", "newtype", "proc", "qualified"
-            , "rec", "type", "where"]
+            , "rec", "where"]
 
 -- | Scans your '$PATH' environment variable and creates a function for each
 -- executable found. Binaries that would not create valid Haskell identifiers
