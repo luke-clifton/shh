@@ -26,6 +26,8 @@ tests = testGroup "Tests" [unitTests, properties]
 properties :: TestTree
 properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
+    , testProperty "encodeIdentifier = encodeIdentifier . encodeIdentifier"
+        $ \l -> encodeIdentifier l == encodeIdentifier (encodeIdentifier l)
     ]
 
 withTmp :: (FilePath -> IO a) -> IO a

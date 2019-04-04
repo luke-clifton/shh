@@ -18,11 +18,11 @@ import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char (isLower, isSpace, isAlphaNum)
+import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower)
 import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (isJust)
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
@@ -32,7 +32,7 @@ import System.IO
 import System.Posix.Signals
 import System.Process
 
--- | This function needs to be called in order to use the library succesfully
+-- | This function needs to be called in order to use the library successfully
 -- from GHCi.
 initInteractive :: IO ()
 initInteractive = do
@@ -424,52 +424,67 @@ data ExecReference
     = Absolute -- ^ Find executables on PATH, but store their absolute path
     | SearchPath -- ^ Always search on PATH
 
--- | @$(loadExeAs fnName executable)@ defines a function called @fnName@
--- which executes the path in @executable@.
-loadExeAs :: ExecReference -> String -> String -> Q [Dec]
-loadExeAs ref fnName executable =
-    -- TODO: Can we place haddock markup in TH generated functions.
-    -- TODO: Can we palce the man page for each function in there xD
-    -- https://ghc.haskell.org/trac/ghc/ticket/5467
+-- | Template Haskell function to create a function from a path that will be
+-- called. This does not check for executability at compile time.
+rawExe :: String -> String -> Q [Dec]
+rawExe fnName executable = do
     let
         name = mkName $ fnName
-        impl executableRef = valD (varP name) (normalB [|
-            exe executableRef
+        impl = valD (varP name) (normalB [|
+            exe executable
             |]) []
         typn = mkName "a"
         typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
-    in do
-        runIO (Dir.findExecutable executable) >>= \case
-            Nothing -> error $ "Attempted to load '" ++ executable ++ "', but it is not executable"
-            Just absExe -> do
-                i <- impl (case ref of { Absolute -> absExe; SearchPath -> executable })
-                return $ [typ,i]
+    i <- impl
+    return $ [typ,i]
 
--- | Checks if a String is a valid Haskell identifier.
-validIdentifier :: String -> Bool
-validIdentifier "" = False
-validIdentifier ident = isValidInit (head ident) && all isValidC ident && isNotIdent
-    where
-        isValidInit c = isLower c || c `elem` "_"
-        isValidC c = isAlphaNum c || c `elem` "_'"
-        isNotIdent = not $ ident `elem`
-            [ "import", "if", "else", "then", "do", "in", "let", "type"
+-- | @$(loadExeAs ref fnName executable)@ defines a function called @fnName@
+-- which executes the path in @executable@. If @executable@ is an absolute path
+-- it is used directly. If it is just an executable name, then it is searched
+-- for in the PATH environment variable. If @ref@ is @SearchPath@, the short
+-- name is retained, and your PATH will be searched at runtime. If @ref@
+-- is @Absolute@, a executable name will be turned into an absolute path, which
+-- will be used at runtime.
+loadExeAs :: ExecReference -> String -> String -> Q [Dec]
+loadExeAs ref fnName executable = do
+    -- TODO: Can we place haddock markup in TH generated functions.
+    -- TODO: Can we place the man page for each function in there xD
+    -- https://ghc.haskell.org/trac/ghc/ticket/5467
+    runIO (Dir.findExecutable executable) >>= \case
+        Nothing -> error $ "Attempted to load '" ++ executable ++ "', but it is not executable"
+        Just absExe ->
+            rawExe fnName (case ref of { Absolute -> absExe; SearchPath -> executable })
+
+-- | Takes a string, and makes a Haskell identifier out of it. There
+-- is some chance of overlap. If the string is a path, the filename portion
+-- is used. The transformation replaces all non-alphanumeric characters
+-- with @'_'@. If the first character is uppercase it is forced into lowercase.
+encodeIdentifier :: String -> String
+encodeIdentifier ident =
+    let
+        i = go (takeFileName ident)
+        go (c:cs)
+            | isLower c = c : go' cs
+            | isUpper c = toLower c : go' cs
+            | otherwise = go' (c:cs)
+        go [] = "_"
+        go' (c:cs)
+            | isAlphaNum c = c : go' cs
+            | otherwise    = '_' : go' cs
+        go' [] = []
+        -- Includes cd, which has to be a built-in
+        reserved = [ "import", "if", "else", "then", "do", "in", "let", "type"
             , "as", "case", "of", "class", "data", "default", "deriving"
             , "instance", "forall", "foreign", "hiding", "infix", "infixl"
             , "infixr", "mdo", "module", "newtype", "proc", "qualified"
-            , "rec", "where"]
+            , "rec", "where", "cd"]
+    in if i `elem` reserved then i ++ "_" else i
 
 -- | Scans your '$PATH' environment variable and creates a function for each
 -- executable found. Binaries that would not create valid Haskell identifiers
--- are ignored. It also creates the IO action @missingExecutables@ which will
--- do a runtime check to ensure all the executables that were found at
--- compile time still exist.
---
--- Note: If an executable named @cd@ is discovered, this will load it as @cd'@
+-- are encoded using the @'encodeIdentifier'@ function.
 loadEnv :: ExecReference -> Q [Dec]
-loadEnv ref = loadAnnotatedEnv ref $ \case
-    "cd" -> "cd'"
-    x    -> x
+loadEnv ref = loadAnnotatedEnv ref encodeIdentifier
 
 -- | Test to see if an executable can be found either on the $PATH or absolute.
 checkExecutable :: FilePath -> IO Bool
@@ -477,14 +492,15 @@ checkExecutable = fmap isJust . Dir.findExecutable
 
 -- | Load the given executables into the program, checking their executability
 -- and creating a function @missingExecutables@ to do a runtime check for their
--- availability.
+-- availability. Uses the @'encodeIdentifier'@ function to create function
+-- names.
 load :: ExecReference -> [String] -> Q [Dec]
-load ref = loadAnnotated ref id
+load ref = loadAnnotated ref encodeIdentifier
 
 -- | Same as `load`, but allows you to modify the function names.
 loadAnnotated :: ExecReference -> (String -> String) -> [String] -> Q [Dec]
 loadAnnotated ref f bins = do
-    let pairs = mapMaybe getAnnotation bins
+    let pairs = zip (map f bins) bins
     ds <- fmap join $ mapM (uncurry (loadExeAs ref)) pairs
     d <- valD (varP (mkName "missingExecutables")) (normalB [|
                 filterM (fmap not . checkExecutable) bins
@@ -492,32 +508,30 @@ loadAnnotated ref f bins = do
 
     pure (d:ds)
 
-    where
-        getAnnotation :: String -> Maybe (String,String)
-        getAnnotation s
-            | validIdentifier (f s) = Just (f s, s)
-            | otherwise             = Nothing
-
 -- | Like `loadEnv`, but allows you to modify the function name that would
 -- be generated.
 loadAnnotatedEnv :: ExecReference -> (String -> String) -> Q [Dec]
 loadAnnotatedEnv ref f = do
-    bins <- runIO pathBins
-    loadAnnotated ref f bins
+    bins <- runIO $ case ref of
+        Absolute -> pathBinsAbs
+        SearchPath -> pathBins
+    i <- forM bins $ \bin -> do
+        rawExe (f $ takeFileName bin) bin
+    pure (concat i)
 
--- | Function that splits '\0' seperated list of strings. Useful in conjuction
+-- | Function that splits '\0' separated list of strings. Useful in conjunction
 -- with @find . "-print0"@.
 split0 :: String -> [String]
 split0 = endBy "\0"
 
--- | A convinience function for reading in a @"\\NUL"@ seperated list of
+-- | A convenience function for reading in a @"\\NUL"@ separated list of
 -- strings. This is commonly used when dealing with paths.
 --
 -- > readSplit0 $ find "-print0"
 readSplit0 :: Proc () -> IO [String]
 readSplit0 p = withReadSplit0 p pure
 
--- | A convinience function for reading the output lines of a `Proc`.
+-- | A convenience function for reading the output lines of a `Proc`.
 --
 -- Note: Please consider using @'readSplit0'@ instead if you can.
 readLines :: Proc () -> IO [String]

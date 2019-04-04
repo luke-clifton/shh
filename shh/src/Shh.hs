@@ -54,6 +54,7 @@ module Shh
     , ExecArgs()
     , Unit()
     -- | == Template Haskell helpers
+    , encodeIdentifier
     , ExecReference(..)
     , load
     , loadEnv
@@ -61,6 +62,8 @@ module Shh
     , loadAnnotatedEnv
     , loadExe
     , loadExeAs
+    , pathBins
+    , pathBinsAbs
     -- | = Builtins
     , cd
     ) where
