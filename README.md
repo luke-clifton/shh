@@ -162,6 +162,15 @@ You might, for example, wrap the execution in a `nix-shell`. Either way,
 it is up to you to make sure that the compiler, and packages you require are
 available, either globally, or provided by the `wrapper` script.
 
+#### Nix Wrapper Example
+
+The following snippet could act as a `wrapper` file to set up a suitable
+environment using `nix-shell`
+
+    #! /usr/bin/env nix-shell
+    #! nix-shell -i bash -p "(haskellPackages.ghcWithPackages (p: with p; [shh shh-extras]))"
+    exec "$@"
+
 ### Script Usage
 
 TODO: Fill this in once the user experience is better.
