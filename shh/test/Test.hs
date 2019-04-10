@@ -8,8 +8,12 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Control.Exception
 import Control.Monad
+import Data.Char
+import Data.Word
+import Control.Concurrent.Async
+import System.IO
 
-$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm"])
+$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf"])
 
 main = do
     putStrLn "################################################"
@@ -23,11 +27,22 @@ main = do
 tests :: TestTree
 tests = testGroup "Tests" [unitTests, properties]
 
+bytesToString :: [Word8] -> String
+bytesToString = map (chr . fromIntegral)
+
 properties :: TestTree
 properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
     , testProperty "encodeIdentifier = encodeIdentifier . encodeIdentifier"
         $ \l -> encodeIdentifier l == encodeIdentifier (encodeIdentifier l)
+    , testProperty "pureProc id" $ \s -> ioProperty $ do
+        let
+            s' = bytesToString s
+        k <- readProc $ s' >>> pureProc id
+        pure $ s' === k
+    , testProperty "pureProc (map toUpper)" $ \(ASCIIString s) -> ioProperty $ do
+        k <- readProc $ s >>> pureProc (map toUpper)
+        pure $ map toUpper s === k
     ]
 
 withTmp :: (FilePath -> IO a) -> IO a
@@ -93,4 +108,24 @@ unitTests = testGroup "Unit tests"
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
         Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . take 3
         r @?= Shh.Failure "false" ["dummy"] 1
+    , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1_3__"
+    , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "t_est"
+    , testCase "pureProc closes input" $ do
+        r <- readProc $ cat "/dev/urandom" |> pureProc (const "test")
+        r @?= "test"
+    , testCase "pureProc closes output" $ do
+        r <- readProc $ pureProc (const "test") |> cat
+        r @?= "test"
+    , testCase "pureProc doesn't close std handles" $ do
+        runProc $ pureProc (const "")
+        b <- hIsOpen stdin
+        b @?= True
+        b <- hIsOpen stdout
+        b @?= True
+        runProc $ pureProc (const "") &> StdErr
+        b <- hIsOpen stderr
+        b @?= True
+    , testCase "pureProc sanity check" $ do
+        r <- readProc $ printf "Hello" |> pureProc id |> cat
+        r @?= "Hello"
     ]

@@ -7,8 +7,6 @@ import System.Environment
 import System.Exit
 import System.IO.Temp
 import System.Directory
-import Data.Hashable (hash)
-import Data.List.Split (splitOn)
 
 defaultShell = "\
 \{-# LANGUAGE TemplateHaskell #-}\n\

@@ -36,6 +36,8 @@ module Shh
     , (<<<), (>>>)
     , readWriteProc
     , apply
+    -- | === Native Procs
+    , pureProc
     -- | === String manipulation
     -- Utility functions for dealing with common string issues in shell
     -- scripting.

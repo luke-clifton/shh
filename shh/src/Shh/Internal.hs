@@ -13,6 +13,9 @@
 -- | See documentation for "Shh".
 module Shh.Internal where
 
+import GHC.IO.Exception
+import System.IO.Error
+
 import Control.Concurrent.Async
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
@@ -109,7 +112,7 @@ class PipeResult f where
     -- | Run a process and capture it's output lazily. Once the continuation
     -- is completed, the handles are closed. However, the process is run
     -- until it naturally terminates in order to capture the correct exit
-    -- code. Many utilities behave correctly with this (e.g. @cat@ will
+    -- code. Most utilities behave correctly with this (e.g. @cat@ will
     -- terminate if you close the handle).
     withRead :: (NFData b) => Proc a -> (String -> IO b) -> f b
 
@@ -570,3 +573,23 @@ instance (io ~ IO ()) => Cd io where
 
 instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
     cd = cd'
+
+-- | Turn a pure function into a @`Proc`@ that transforms it's stdin
+-- and outputs it to stdout.
+pureProc :: (String -> String) -> Proc ()
+pureProc f = Proc $ \i o _ pl pw -> handle handler $ do
+    -- hGetContents closes the handle. But if it's stdin, we want to keep
+    -- it open.
+    i' <- if i == stdin then openFile "/dev/tty" ReadMode else pure i
+    pl
+    s <- hGetContents i'
+    hPutStr o (f s)
+        `finally` hClose i'
+        `finally` (when (o /= stdout && o /= stderr) $ hClose o)
+        `finally` pw
+
+    where
+        handler :: IOError -> IO ()
+        handler e
+            | ioeGetErrorType e == ResourceVanished = pure ()
+            | otherwise = throwIO e
