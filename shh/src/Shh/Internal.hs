@@ -459,6 +459,8 @@ loadExeAs ref fnName executable = do
 -- is some chance of overlap. If the string is a path, the filename portion
 -- is used. The transformation replaces all non-alphanumeric characters
 -- with @'_'@. If the first character is uppercase it is forced into lowercase.
+-- If it starts with a number, it is prefixed with `_`. If it overlaps with
+-- a reserved word or a builtin, it is suffixed with an `_`.
 encodeIdentifier :: String -> String
 encodeIdentifier ident =
     let
