@@ -400,12 +400,17 @@ pathBinsAbs = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM Dir.doesDirectoryExist pathsVar
     ps <- ordNubOn takeFileName . concat <$> mapM (\d -> fmap (\x -> d++('/':x)) <$> Dir.getDirectoryContents d) paths
-    filterM (fmap Dir.executable . Dir.getPermissions) ps
+    filterM (tryBool . fmap Dir.executable . Dir.getPermissions) ps
 
     where
         -- TODO: Eventually replace this with nubOrdOn (containers 0.6.0.1 dep)
         ordNubOn :: Ord b => (a -> b) -> [a] -> [a]
         ordNubOn f as = map snd . Map.toList . Map.fromListWith const $ zip (map f as) as
+
+        tryBool :: IO Bool -> IO Bool
+        tryBool a = try a >>= \case
+            Left (SomeException _) -> pure False
+            Right r -> pure r
 
 -- | Execute the given command. Further arguments can be passed in.
 --
