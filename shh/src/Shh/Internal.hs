@@ -18,7 +18,7 @@ import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower)
+import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower, isNumber)
 import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
@@ -464,9 +464,10 @@ encodeIdentifier ident =
     let
         i = go (takeFileName ident)
         go (c:cs)
-            | isLower c = c : go' cs
-            | isUpper c = toLower c : go' cs
-            | otherwise = go' (c:cs)
+            | isLower  c = c : go' cs
+            | isUpper  c = toLower c : go' cs
+            | isNumber c = '_' : go' (c : cs)
+            | otherwise  = go' (c:cs)
         go [] = "_"
         go' (c:cs)
             | isAlphaNum c = c : go' cs
