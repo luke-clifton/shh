@@ -77,12 +77,18 @@ class PipeResult f where
     -- another `Proc a` or an `IO a` depending on the context in which it is
     -- used.
     --
+    -- If any intermediate process throws an exception, the whole pipeline
+    -- is canceled.
+    --
+    -- The result of the last process in the chain is the result returned
+    -- by the pipeline. 
+    --
     -- >>> echo "Hello" |> wc
     --       1       1       6
-    (|>) :: Proc a -> Proc a -> f a
+    (|>) :: Proc b -> Proc a -> f a
 
     -- | Flipped version of `|>`
-    (<|) :: Proc a -> Proc a -> f a
+    (<|) :: Proc a -> Proc b -> f a
     (<|) = flip (|>)
 
     -- | Similar to `|!>` except that it connects stderr to stdin of the
@@ -94,7 +100,7 @@ class PipeResult f where
     --                                            
     -- This is probably not what you want, see the `&>` and `&!>` operators
     -- for redirection.
-    (|!>) :: Proc a -> Proc a -> f a
+    (|!>) :: Proc b -> Proc a -> f a
 
     -- | Redirect stdout of this process to another location
     --
@@ -258,6 +264,15 @@ mkProc = mkProc' False
 -- for a lazy version that can be used for streaming.
 readProc :: PipeResult io => Proc a -> io String
 readProc p = withRead p pure
+
+-- | A special `Proc` which captures it's stdin and presents it as a `String`
+-- to Haskell.
+--
+-- >>> printf "Hello" |> shasum |> capture
+-- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
+capture :: PipeResult io => io String
+-- TODO: This deserves a better implementation
+capture = readProc (pureProc id)
 
 -- | Apply a transformation function to the string before the IO action.
 withRead' :: (NFData b, PipeResult io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
