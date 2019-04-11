@@ -14,6 +14,7 @@
 module Shh.Internal where
 
 import GHC.IO.Exception
+import GHC.IO.Handle
 import System.IO.Error
 
 import Control.Concurrent.Async
@@ -86,10 +87,7 @@ class PipeResult f where
     -- >>> echo "Hello" |> wc
     --       1       1       6
     (|>) :: Proc b -> Proc a -> f a
-
-    -- | Flipped version of `|>`
-    (<|) :: Proc a -> Proc b -> f a
-    (<|) = flip (|>)
+    infixl 1 |>
 
     -- | Similar to `|!>` except that it connects stderr to stdin of the
     -- next process in the chain.
@@ -101,34 +99,34 @@ class PipeResult f where
     -- This is probably not what you want, see the `&>` and `&!>` operators
     -- for redirection.
     (|!>) :: Proc b -> Proc a -> f a
+    infixl 1 |!>
 
     -- | Redirect stdout of this process to another location
     --
     -- > ls &> Append "/dev/null"
     (&>) :: Proc a -> Stream -> f a
+    infixl 9 &>
 
     -- | Redirect stderr of this process to another location
     --
     -- > ls &!> StdOut
     (&!>) :: Proc a -> Stream -> f a
+    infixl 9 &!>
 
-    -- | Provide the stdin of a `Proc` from a `String`
-    writeProc :: Proc a -> String -> f a
+    -- | Lift a Haskell function into a `Proc`.
+    nativeProc :: (Handle -> Handle -> Handle -> IO a) -> f a
 
-    -- | Run a process and capture it's output lazily. Once the continuation
-    -- is completed, the handles are closed. However, the process is run
-    -- until it naturally terminates in order to capture the correct exit
-    -- code. Most utilities behave correctly with this (e.g. @cat@ will
-    -- terminate if you close the handle).
-    withRead :: (NFData b) => Proc a -> (String -> IO b) -> f b
+-- | Flipped version of `|>`
+(<|) :: PipeResult f => Proc a -> Proc b -> f a
+(<|) = flip (|>)
+infixr 1 <|
 
 instance PipeResult IO where
     a |> b = runProc $ a |> b
     a |!> b = runProc $ a |!> b
     a &> s = runProc $ a &> s
     a &!> s = runProc $ a &!> s
-    writeProc p s = runProc $ writeProc p s
-    withRead p k = runProc $ withRead p k
+    nativeProc f = runProc $ nativeProc f
 
 -- | Create a pipe, and close both ends on exception.
 withPipe :: (Handle -> Handle -> IO a) -> IO a
@@ -169,18 +167,83 @@ instance PipeResult Proc where
     (Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
         withBinaryFile path AppendMode $ \h -> f i o h pl pw
 
-    writeProc (Proc f) input = Proc $ \_ o e pl pw -> do
-        withPipe $ \r w ->
-            fst <$> concurrently
-                (f r o e pl (pw `finally` hClose r))
-                (hPutStr w input `finally` hClose w)
+    nativeProc f = Proc $ \i o e pl pw -> handle handler $ do
+        pl
+        -- We duplicate these so that you can't accidentally close the
+        -- real ones.
+        i' <- hDuplicate i
+        o' <- hDuplicate o
+        e' <- hDuplicate e
 
-    withRead (Proc f) k = Proc $ \i _ e pl pw -> do
-        withPipe $ \r w -> do
-            withAsync (f i w e pl (hClose w `finally` pw)) $ \a -> do
-                rr <- (hGetContents r >>= k >>= C.evaluate . force) `finally` hClose r
-                _ <- wait a
-                pure rr
+        -- We NEVER want the process to be able to close stderr because it
+        -- is shared by the whole pipeline.
+        -- e' <- hDuplicate e
+
+        a <- f i' o' e'
+            `finally` (hClose i')
+            `finally` (hClose o')
+            `finally` (hClose e')
+            `finally` pw
+        pure a
+
+        where
+            -- The resource vanished error only occurs when upstream pipe closes.
+            -- This can only happen with the `|>` combinator, which will discard
+            -- the result of this `Proc` anyway. If the return value is somehow
+            -- inspected, or maybe if the exception is somehow legitimate, we
+            -- simply package it up as an exploding return value. `runProc` will
+            -- make sure to evaluate all `Proc`'s to WHNF in order to uncover it.
+            -- This should never happen. *nervous*
+            handler :: IOError -> IO a
+            handler e
+                | ioeGetErrorType e == ResourceVanished = pure (throw e)
+                | otherwise = throwIO e
+
+-- | Simple @`Proc`@ that writes a `String` to it's @stdout@. This behaves
+-- very much like the standard @echo@ utility, except that there is no
+-- restriction as to what can be in the string argument.
+writeOutput :: PipeResult io => String -> io ()
+writeOutput s = nativeProc $ \_ o _ -> do
+    hPutStr o s
+
+-- | Simple @`Proc`@ that writes a `String` to it's @stderr@.
+-- See also @`writeOutput`@.
+writeError :: PipeResult io => String -> io ()
+writeError s = nativeProc $ \_ _ e -> do
+    hPutStr e s
+
+-- | Simple @`Proc`@ that reads it's input, and can react to it with an IO
+-- action. Does not write anything to it's output. See also @`capture`@.
+readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
+readInput f = nativeProc $ \i _ _ -> do
+    r <- hGetContents i >>= f
+    C.evaluate $ force r
+
+-- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
+-- it to @stdout@.
+pureProc :: PipeResult io => (String -> String) -> io ()
+pureProc f = nativeProc $ \i o _ -> do
+    s <- hGetContents i
+    hPutStr o (f s)
+
+-- | Captures the stdout of a process and prefixes all the lines with
+-- the given string.
+--
+-- some_command |> prefixLines "stdout: " |!> prefixLines "stderr: " &> StdErr
+prefixLines :: PipeResult io => String -> io ()
+prefixLines s = pureProc $ unlines . map (s ++) . lines
+
+-- | Provide the stdin of a `Proc` from a `String`
+writeProc :: PipeResult io => Proc a -> String -> io a
+writeProc p s = writeOutput s |> p
+
+-- | Run a process and capture it's output lazily. Once the continuation
+-- is completed, the handles are closed. However, the process is run
+-- until it naturally terminates in order to capture the correct exit
+-- code. Most utilities behave correctly with this (e.g. @cat@ will
+-- terminate if you close the handle).
+withRead :: (PipeResult f, NFData b) => Proc a -> (String -> IO b) -> f b
+withRead p f = p |> readInput f
 
 -- | Type used to represent destinations for redirects. @`Truncate` file@
 -- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.
@@ -191,6 +254,10 @@ devNull :: Stream
 devNull = Truncate "/dev/null"
 
 -- | Type representing a series or pipeline (or both) of shell commands.
+--
+-- @Proc@'s can communicate to each other via @stdin@, @stdout@ and @stderr@
+-- and can communicate to Haskell via their parameterised return type, or by
+-- throwing an exception.
 newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
     deriving Functor
 
@@ -231,7 +298,14 @@ instance Monad Proc where
 -- commands in Shh are polymorphic in their return type, and work
 -- just fine in `IO` directly.
 runProc :: Proc a -> IO a
-runProc (Proc f) = f stdin stdout stderr (pure ()) (pure ())
+runProc (Proc f) = do
+    r <- f stdin stdout stderr (pure ()) (pure ())
+    -- Evaluate to WHNF to uncover any ResourceVanished exceptions
+    -- that may be hiding in there from `nativeProc`. These should
+    -- not happen under normal circumstances, but we would at least
+    -- like to have the exception thrown ASAP if, for whatever reason,
+    -- it does happen.
+    pure $! r
 
 -- | Create a `Proc` from a command and a list of arguments.
 -- The boolean represents whether we should delegate control-c
@@ -271,8 +345,7 @@ readProc p = withRead p pure
 -- >>> printf "Hello" |> shasum |> capture
 -- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
 capture :: PipeResult io => io String
--- TODO: This deserves a better implementation
-capture = readProc (pureProc id)
+capture = readInput pure
 
 -- | Apply a transformation function to the string before the IO action.
 withRead' :: (NFData b, PipeResult io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
@@ -588,23 +661,3 @@ instance (io ~ IO ()) => Cd io where
 
 instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
     cd = cd'
-
--- | Turn a pure function into a @`Proc`@ that transforms it's stdin
--- and outputs it to stdout.
-pureProc :: (String -> String) -> Proc ()
-pureProc f = Proc $ \i o _ pl pw -> handle handler $ do
-    -- hGetContents closes the handle. But if it's stdin, we want to keep
-    -- it open.
-    i' <- if i == stdin then openFile "/dev/tty" ReadMode else pure i
-    pl
-    s <- hGetContents i'
-    hPutStr o (f s)
-        `finally` hClose i'
-        `finally` (when (o /= stdout && o /= stderr) $ hClose o)
-        `finally` pw
-
-    where
-        handler :: IOError -> IO ()
-        handler e
-            | ioeGetErrorType e == ResourceVanished = pure ()
-            | otherwise = throwIO e

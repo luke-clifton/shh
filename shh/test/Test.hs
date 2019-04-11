@@ -35,6 +35,11 @@ properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
     , testProperty "encodeIdentifier = encodeIdentifier . encodeIdentifier"
         $ \l -> encodeIdentifier l == encodeIdentifier (encodeIdentifier l)
+    , testProperty "writeOutput" $ \s -> ioProperty $ do
+        let
+            s' = bytesToString s
+        k <- writeOutput s' |> capture
+        pure $ s' === k
     , testProperty "pureProc id" $ \s -> ioProperty $ do
         let
             s' = bytesToString s
@@ -56,6 +61,9 @@ unitTests = testGroup "Unit tests"
     , testCase "Redirect to /dev/null" $ do
         l <- readProc $ echo "test" &> devNull
         l @?= ""
+    , testCase "Redirct stderr" $ do
+        l <- echo "test" &> StdErr |!> capture
+        l @?= "test\n"
     , testCase "Redirect to file (Truncate)" $ withTmp $ \t -> do
         echo "test" &> Truncate t
         r <- readProc $ cat t
@@ -128,4 +136,20 @@ unitTests = testGroup "Unit tests"
     , testCase "pureProc sanity check" $ do
         r <- readProc $ printf "Hello" |> pureProc id |> cat
         r @?= "Hello"
+    , testCase "bind nativeProc" $ do
+        r <- writeOutput "te" >> writeOutput "st" |> capture
+        r @?= "test"
+    , testCase "stdin interleave capture" $ do
+        r <- writeOutput "te" >> writeError "--" &!> devNull >> writeOutput "st" >> writeError "--" &!> devNull |> capture
+        r @?= "test"
+    , testCase "stderr interleave capture" $ do
+        r <- writeOutput "--" &> devNull >> writeError "te" >> writeOutput "--" &> devNull >> writeError "st" |!> capture
+        r @?= "test"
+    , testCase "prefixLines" $ do
+        r <- printf "Hello\\nWorld" |> prefixLines ":" |> capture
+        r @?= ":Hello\n:World\n"
+    , testCase "Bind in the middle" $ do
+        l <- echo "a" |> prefixLines ":" >> echo "c" |> prefixLines ":" |> capture
+        l @?= "::a\n:c\n"
+
     ]
