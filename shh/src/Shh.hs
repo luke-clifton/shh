@@ -21,6 +21,7 @@ module Shh
     , prefixLines
     , capture
     , readInput
+    , xargs1
     -- | == Piping and Redirection
     , PipeResult(..)
     , (<|)

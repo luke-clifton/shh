@@ -13,7 +13,7 @@ import Data.Word
 import Control.Concurrent.Async
 import System.IO
 
-$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf"])
+$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf", "xargs", "find"])
 
 main = do
     putStrLn "################################################"
@@ -151,5 +151,8 @@ unitTests = testGroup "Unit tests"
     , testCase "Bind in the middle" $ do
         l <- echo "a" |> prefixLines ":" >> echo "c" |> prefixLines ":" |> capture
         l @?= "::a\n:c\n"
-
+    , testCase "xargs1" $ do
+        a <- find "." "-print0" |> xargs "--null" "-L1" "echo" |> capture
+        b <- find "." "-print0" |> xargs1 "\0" echo |> capture
+        a @?= b
     ]

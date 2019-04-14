@@ -298,8 +298,12 @@ instance Monad Proc where
 -- commands in Shh are polymorphic in their return type, and work
 -- just fine in `IO` directly.
 runProc :: Proc a -> IO a
-runProc (Proc f) = do
-    r <- f stdin stdout stderr (pure ()) (pure ())
+runProc = runProc' stdin stdout stderr
+
+-- | Run's a `Proc` in `IO`. Like `runProc`, but you get to choose the handles.
+runProc' :: Handle -> Handle -> Handle -> Proc a -> IO a
+runProc' i o e (Proc f) = do
+    r <- f i o e (pure ()) (pure ())
     -- Evaluate to WHNF to uncover any ResourceVanished exceptions
     -- that may be hiding in there from `nativeProc`. These should
     -- not happen under normal circumstances, but we would at least
@@ -661,3 +665,18 @@ instance (io ~ IO ()) => Cd io where
 
 instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
     cd = cd'
+
+-- | @xargs1 n f@ runs @f@ for each item in the input separated by @n@. Similar
+-- to the standard @xargs@ utility, but you get to choose the separator, and it
+-- only does one argument per command. Compare the following two lines, which
+-- do the same thing.
+--
+-- >>> xargs "--null" "-L1" "echo" -- Using standard xargs utility.
+-- >>> xargs1 "\0" echo
+--
+-- One benefit of this method over the standard @xargs@ is that we can run
+-- Haskell functions as well, by using `liftIO` for example.
+xargs1 :: String -> (String -> Proc ()) -> Proc ()
+xargs1 n f = nativeProc $ \i o e -> do
+    ls <- endBy n <$> hGetContents i
+    liftIO $ runProc' i o e $ mapM_ f ls
