@@ -114,7 +114,7 @@ class PipeResult f where
     infixl 9 &!>
 
     -- | Lift a Haskell function into a `Proc`.
-    nativeProc :: (Handle -> Handle -> Handle -> IO a) -> f a
+    nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
 
 -- | Flipped version of `|>`
 (<|) :: PipeResult f => Proc a -> Proc b -> f a
@@ -179,12 +179,11 @@ instance PipeResult Proc where
         -- is shared by the whole pipeline.
         -- e' <- hDuplicate e
 
-        a <- f i' o' e'
+        (f i' o' e' >>= C.evaluate . force)
             `finally` (hClose i')
             `finally` (hClose o')
             `finally` (hClose e')
             `finally` pw
-        pure a
 
         where
             -- The resource vanished error only occurs when upstream pipe closes.
@@ -216,8 +215,7 @@ writeError s = nativeProc $ \_ _ e -> do
 -- action. Does not write anything to it's output. See also @`capture`@.
 readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
-    r <- hGetContents i >>= f
-    C.evaluate $ force r
+    hGetContents i >>= f
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
 -- it to @stdout@.
@@ -675,8 +673,11 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 -- >>> xargs1 "\0" echo
 --
 -- One benefit of this method over the standard @xargs@ is that we can run
--- Haskell functions as well, by using `liftIO` for example.
-xargs1 :: String -> (String -> Proc ()) -> Proc ()
+-- Haskell functions as well.
+--
+-- >>> find "." "-print0" |> xargs1 "\0" (const $ pure $ Sum 1)
+-- Sum {getSum = 1590}
+xargs1 :: (NFData a, Monoid a) => String -> (String -> Proc a) -> Proc a
 xargs1 n f = nativeProc $ \i o e -> do
     ls <- endBy n <$> hGetContents i
-    liftIO $ runProc' i o e $ mapM_ f ls
+    liftIO $ runProc' i o e $ mconcat <$> mapM f ls
