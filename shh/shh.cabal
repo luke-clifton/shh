@@ -44,6 +44,7 @@ executable shh
   build-depends:
     base >=4.9,
     temporary,
+    deepseq,
     directory,
     shh
   hs-source-dirs: app

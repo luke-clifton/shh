@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
+import Control.DeepSeq (force,NFData)
 import Shh
 import System.IO
 import System.Environment
@@ -56,7 +57,6 @@ main = do
         wrapper :: String
         wrapper = shhDir <> "/wrapper"
 
-
     debug $ "Shh home is: " <> shhDir
 
     createDirectoryIfMissing False shhDir
@@ -86,6 +86,16 @@ main = do
                     putStrLn "#####################################################################"
                 Right _ -> appendFile "init.ghci" extraInitGhci
         writeIfMissing "Shell.hs" defaultShell
+        writeIfMissing "paths" ""
+        pp <- readFile "paths"
+        cp <- show <$> pathBins
+        if force pp == cp
+        then
+            pure ()
+        else do
+            putStrLn "Recompiling due to PATH changes"
+            writeFile "paths" cp
+            exe wrapper "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
 
     runProc $ mkProc' True wrapper ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"]
 

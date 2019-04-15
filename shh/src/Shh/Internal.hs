@@ -240,6 +240,8 @@ writeProc p s = writeOutput s |> p
 -- until it naturally terminates in order to capture the correct exit
 -- code. Most utilities behave correctly with this (e.g. @cat@ will
 -- terminate if you close the handle).
+--
+-- NB: @withRead p f === p |> readInput f@
 withRead :: (PipeResult f, NFData b) => Proc a -> (String -> IO b) -> f b
 withRead p f = p |> readInput f
 
