@@ -1,7 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import Control.DeepSeq (force,NFData)
+import Control.DeepSeq (force)
+import Control.Exception (evaluate)
+import Control.Monad
 import Shh
 import System.IO
 import System.Environment
@@ -89,12 +91,13 @@ main = do
         writeIfMissing "paths" ""
         pp <- readFile "paths"
         cp <- show <$> pathBins
-        if force pp == cp
-        then
-            pure ()
-        else do
-            putStrLn "Recompiling due to PATH changes"
+        pathDiff <- evaluate $ force pp /= cp
+        shellMod <- getModificationTime "Shell.hs"
+        hiMod    <- getModificationTime "Shell.hi"
+        when (shellMod > hiMod || pathDiff) $ do
+            putStrLn "Rebuilding Shell.hs..."
             writeFile "paths" cp
+            -- Use absolute path of Shell.hs so that GHCi doesn't recompile.
             exe wrapper "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
 
     runProc $ mkProc' True wrapper ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"]
