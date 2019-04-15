@@ -682,4 +682,11 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 xargs1 :: (NFData a, Monoid a) => String -> (String -> Proc a) -> Proc a
 xargs1 n f = nativeProc $ \i o e -> do
     ls <- endBy n <$> hGetContents i
-    liftIO $ runProc' i o e $ mconcat <$> mapM f ls
+    r <- liftIO $ forM ls $ \l -> do
+        -- Duplicate all the Handles to mimic separate process for each call
+        -- to the argument `Proc`.
+        i' <- hDuplicate i
+        o' <- hDuplicate o
+        e' <- hDuplicate e
+        runProc' i' o' e' (f l)
+    pure $ mconcat r

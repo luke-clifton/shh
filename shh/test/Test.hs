@@ -25,7 +25,7 @@ main = do
     defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [unitTests, properties]
+tests = localOption (Timeout 2000000 "2s") $ testGroup "Tests" [unitTests, properties]
 
 bytesToString :: [Word8] -> String
 bytesToString = map (chr . fromIntegral)
@@ -151,8 +151,16 @@ unitTests = testGroup "Unit tests"
     , testCase "Bind in the middle" $ do
         l <- echo "a" |> prefixLines ":" >> echo "c" |> prefixLines ":" |> capture
         l @?= "::a\n:c\n"
-    , testCase "xargs1" $ do
-        a <- find "." "-print0" |> xargs "--null" "-L1" "echo" |> capture
-        b <- find "." "-print0" |> xargs1 "\0" echo |> capture
+    , testCase "writeOutput mimics printf" $ do
+        l <- writeOutput "a\0b\0c" |> capture
+        r <- printf "a\\0b\\0c" |> capture
+        l @?= r
+    , testCase "xargs1 printf" $ do
+        a <- printf "a\\0b\\0c" |> xargs "--null" "-L1" "echo" |> capture
+        b <- printf "a\\0b\\0c" |> xargs1 "\0" echo |> capture
+        a @?= b
+    , testCase "xargs1 writeOutput" $ do
+        a <- writeOutput "a\0b\0c" |> xargs "--null" "-L1" "echo" |> capture
+        b <- writeOutput "a\0b\0c" |> xargs1 "\0" echo |> capture
         a @?= b
     ]
