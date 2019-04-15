@@ -46,7 +46,8 @@ executable shh
     temporary,
     deepseq,
     directory,
-    shh
+    shh,
+    unix
   hs-source-dirs: app
   main-is: shh-app.hs
   build-tools:

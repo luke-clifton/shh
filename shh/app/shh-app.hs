@@ -10,6 +10,7 @@ import System.Environment
 import System.Exit
 import System.IO.Temp
 import System.Directory
+import System.Posix.Process
 
 defaultShell = "\
 \{-# LANGUAGE TemplateHaskell #-}\n\
@@ -100,5 +101,5 @@ main = do
             -- Use absolute path of Shell.hs so that GHCi doesn't recompile.
             exe wrapper "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
 
-    runProc $ mkProc' True wrapper ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"]
+    executeFile wrapper False ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"] Nothing
 
