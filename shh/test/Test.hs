@@ -48,6 +48,12 @@ properties = testGroup "Properties"
     , testProperty "pureProc (map toUpper)" $ \(ASCIIString s) -> ioProperty $ do
         k <- readProc $ s >>> pureProc (map toUpper)
         pure $ map toUpper s === k
+    , testProperty "pureProc . const === writeOutput" $ \s -> ioProperty $ do
+        let
+            s' = bytesToString s
+        a <- writeOutput s' |> capture
+        b <- pureProc (const s') |> capture
+        pure $ a === b
     ]
 
 withTmp :: (FilePath -> IO a) -> IO a
