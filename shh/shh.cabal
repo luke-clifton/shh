@@ -50,8 +50,6 @@ executable shh
     unix
   hs-source-dirs: app
   main-is: shh-app.hs
-  build-tools:
-    ghc
 
 executable shh-example
   ghc-options: -threaded -with-rtsopts=-N

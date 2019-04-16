@@ -45,14 +45,14 @@ import System.Process
 -- >>> let cat = exe "cat"
 -- >>> let echo = exe "echo"
 -- >>> let false = exe "false"
+-- >>> let head = exe "head"
+-- >>> let md5sum = exe "md5sum"
 -- >>> let printf = exe "printf"
--- >>> let shasum = exe "shasum"
 -- >>> let sleep = exe "sleep"
 -- >>> let true = exe "true"
+-- >>> let wc = exe "wc"
 -- >>> let xargs = exe "xargs"
 -- >>> let yes = exe "yes"
--- >>> let wc = exe "wc"
--- >>> let head = exe "head"
 
 -- | This function needs to be called in order to use the library successfully
 -- from GHCi.
@@ -366,8 +366,8 @@ readProc p = withRead p pure
 -- | A special `Proc` which captures it's stdin and presents it as a `String`
 -- to Haskell.
 --
--- >>> printf "Hello" |> shasum |> capture
--- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
+-- >>> printf "Hello" |> md5sum |> capture
+-- "8b1a9953c4611296a827abf8c47804d7  -\n"
 capture :: PipeResult io => io String
 capture = readInput pure
 
@@ -396,8 +396,8 @@ readWriteProc p input = liftIO $ readProc p <<< input
 
 -- | Some as `readWriteProc`. Apply a `Proc` to a `String`.
 --
--- >> apply shasum "Hello"
--- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
+-- >> apply md5sum "Hello"
+-- "8b1a9953c4611296a827abf8c47804d7  -\n"
 apply :: MonadIO io => Proc a -> String -> io String
 apply = readWriteProc
 
