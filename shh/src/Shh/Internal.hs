@@ -14,13 +14,6 @@
 -- | See documentation for "Shh".
 module Shh.Internal where
 
-import GHC.IO.Exception
-import GHC.IO.Handle
-import GHC.IO.Handle.FD
-import GHC.IO.Handle.Types
-import GHC.IO.Device hiding (read)
-import System.IO.Error
-
 import Control.Concurrent.Async
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
@@ -31,12 +24,17 @@ import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import GHC.IO.Device (dup, IODeviceType(RegularFile))
+import GHC.IO.Exception (IOErrorType(ResourceVanished))
+import GHC.IO.Handle.FD (handleToFd, mkHandleFromFD)
+import GHC.IO.Handle.Types (Handle(..))
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
 import System.FilePath (takeFileName)
 import System.IO
+import System.IO.Error
 import System.Posix.Signals
 import System.Process
 
@@ -61,10 +59,10 @@ initInteractive = do
     hSetBuffering stdin LineBuffering
 
 -- | When a process exits with a non-zero exit code
--- we throw this Failure exception.
+-- we throw this @Failure@ exception.
 --
 -- The only exception to this is when a process is terminated
--- by SIGPIPE in a pipeline, in which case we ignore it.
+-- by @SIGPIPE@ in a pipeline, in which case we ignore it.
 data Failure = Failure
     { failureProg :: String
     , failureArgs :: [String]
@@ -321,6 +319,9 @@ runProc :: Proc a -> IO a
 runProc = runProc' stdin stdout stderr
 
 -- | Run's a `Proc` in `IO`. Like `runProc`, but you get to choose the handles.
+-- This is UNSAFE to expose externally, because there are restrictions on what
+-- the Handle can be. Within shh, we never call `runProc'` with invalid handles,
+-- so we ignore that corner case (see `hDup`).
 runProc' :: Handle -> Handle -> Handle -> Proc a -> IO a
 runProc' i o e (Proc f) = do
     r <- f i o e (pure ()) (pure ())
@@ -712,11 +713,11 @@ xargs1 n f = nativeProc $ \i o e -> do
         withDuplicates i o e $ \i' o' e' -> runProc' i' o' e' (f l)
     pure $ mconcat r
 
--- | Bracket a hDuplicate
+-- | Bracket a @`hDup`@
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
 withDuplicate h f = bracket (hDup h) hClose f
 
--- | Bracket three hDuplicates.
+-- | Bracket three @`hDup`@s
 withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
@@ -727,8 +728,9 @@ withDuplicates a b c f =
 -- work for streams/pipes. Since we are simulating a @fork + exec@ in @`nativeProc`@,
 -- losing the buffers is actually the expected behaviour.
 hDup :: Handle -> IO Handle
-hDup ~h@(FileHandle p _) = do
+hDup h@(FileHandle p _) = do
     f <- handleToFd h
     enc <- hGetEncoding h
     f' <- dup f
     mkHandleFromFD f' RegularFile p  ReadWriteMode True enc
+hDup _ = error "You called hDup with an invalid Handle. But that shouldn't happen."

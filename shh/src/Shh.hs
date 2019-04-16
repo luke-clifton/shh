@@ -13,9 +13,9 @@ module Shh
     , mkProc'
     , runProc
     , Proc()
-    -- | === "Internal" Processes
+    -- | === "Native" Processes
     -- You can also create native Haskell @`Proc`@s which behave the same
-    -- way, but simple run Haskell functions instead of external processes.
+    -- way, but simply run Haskell functions instead of external processes.
     , pureProc
     , writeOutput, writeError
     , prefixLines
@@ -34,11 +34,15 @@ module Shh
     -- as soon the function finishes. Note that the result is forced to
     -- normal form to prevent any accidental reading after the process has
     -- terminated.
+    --
+    -- NB: See `readInput` and `pureProc` for more flexible options to those
+    -- listed here.
     , withRead
     , withReadSplit0
     , withReadLines
     , withReadWords
     -- | === Strict reads
+    -- NB: See also `capture`
     , readProc
     , readTrim
     , readSplit0
@@ -46,6 +50,7 @@ module Shh
     , readWords
     , readAuto
     -- | === Writing to @stdin@
+    -- NB: See also `writeOutput` for an `echo`-like option.
     , (<<<), (>>>), writeProc
     , readWriteProc
     , apply
