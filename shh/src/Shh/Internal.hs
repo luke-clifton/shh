@@ -206,6 +206,12 @@ writeError s = nativeProc $ \_ _ e -> do
 
 -- | Simple @`Proc`@ that reads it's input, and can react to it with an IO
 -- action. Does not write anything to it's output. See also @`capture`@.
+--
+-- @`readInput`@ uses lazy IO to read it's stdin, and works with infinite
+-- inputs.
+--
+-- >>> yes |> readInput (pure . unlines . take 3 . lines)
+-- "y\ny\ny\n"
 readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
