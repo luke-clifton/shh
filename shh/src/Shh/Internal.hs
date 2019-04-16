@@ -17,8 +17,7 @@ module Shh.Internal where
 import GHC.IO.Exception
 import GHC.IO.Handle
 import GHC.IO.Handle.FD
-import GHC.IO.Handle.Internals
-import GHC.IO.Handle.Types hiding (read)
+import GHC.IO.Handle.Types
 import GHC.IO.Device hiding (read)
 import System.IO.Error
 
@@ -32,7 +31,6 @@ import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import Data.Typeable (cast)
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
@@ -723,10 +721,14 @@ withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> I
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
 
+-- | Duplicate a @`Handle`@ without trying to flush buffers. Only works on @`FileHandle`@s.
+--
+-- hDuplicate tries to "flush" read buffers by seeking backwards, which doesn't
+-- work for streams/pipes. Since we are simulating a @fork + exec@ in @`nativeProc`@,
+-- losing the buffers is actually the expected behaviour.
 hDup :: Handle -> IO Handle
-hDup h = do
+hDup ~h@(FileHandle p _) = do
     f <- handleToFd h
-    dt <- devType f
     enc <- hGetEncoding h
     f' <- dup f
-    mkHandleFromFD f' RegularFile "test"  ReadWriteMode True enc
+    mkHandleFromFD f' RegularFile p  ReadWriteMode True enc
