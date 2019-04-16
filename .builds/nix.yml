@@ -1,6 +1,6 @@
-image: nixos/18.09
+image: nixos/latest
 repositories:
-  nixpkgs: https://nixos.org/channels/nixos-18.09-small
+  nixpkgs: https://nixos.org/channels/nixos-19.03-small
 packages:
   - nixpkgs.haskellPackages.cabal-install
 sources:
