@@ -2,10 +2,11 @@
 module Main where
 
 import Control.DeepSeq (force)
-import Control.Exception (evaluate)
+import Control.Exception
 import Control.Monad
 import Shh
 import System.IO
+import System.IO.Error
 import System.Environment
 import System.Exit
 import System.IO.Temp
@@ -93,9 +94,12 @@ main = do
         pp <- readFile "paths"
         cp <- show <$> pathBins
         pathDiff <- evaluate $ force pp /= cp
-        shellMod <- getModificationTime "Shell.hs"
-        hiMod    <- getModificationTime "Shell.hi"
-        when (shellMod > hiMod || pathDiff) $ do
+        outdated <- catch (do
+            shellMod <- getModificationTime "Shell.hs"
+            hiMod    <- getModificationTime "Shell.hi"
+            pure (shellMod > hiMod)
+            ) (\e -> if (isDoesNotExistError e) then pure True else throwIO e)
+        when (outdated || pathDiff) $ do
             putStrLn "Rebuilding Shell.hs..."
             writeFile "paths" cp
             -- Use absolute path of Shell.hs so that GHCi doesn't recompile.
