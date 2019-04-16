@@ -175,7 +175,7 @@ available, either globally, or provided by the `wrapper` script.
 
 `shh` precompiles your `Shell.hs` file so that starting up `shh` is very
 quick on subsequent launches. Unfortunately, `shh` isn't quite able to detect
-this perfectly. If you see GHCi telling you that it is `Compiling Shell.hs`,
+this perfectly. If you see GHCi telling you that it is `Compiling Shell`,
 and you notice the delay when starting `shh`, try manually forcing a rebuild
 by passing in the `--rebuild` argument to `shh`.
 
