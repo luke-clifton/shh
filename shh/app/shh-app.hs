@@ -71,7 +71,9 @@ main = do
                 removeFile "Shell.hi"
                 removeFile "Shell.o"
             [] -> pure ()
-            ["--help"] -> putStrLn "usage: shh [--rebuild]"
+            ["--help"] -> do
+                putStrLn "usage: shh [--rebuild]"
+                exitSuccess
             _ -> error $ "Unknown arguments: " ++ show a
         writeIfMissing "wrapper" defaultWrapper
         setPermissions "wrapper" $
