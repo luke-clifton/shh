@@ -2,7 +2,9 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Main where
 
+import System.Directory
 import Shh
+import Test.DocTest
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -22,6 +24,8 @@ main = do
     putStrLn " failures, please check that it's not because"
     putStrLn " they are missing."
     putStrLn "################################################"
+    print <$> getCurrentDirectory
+    withCurrentDirectory "shh" $ doctest ["--fast", "-isrc", "src/Shh/Internal.hs"]
     defaultMain tests
 
 tests :: TestTree

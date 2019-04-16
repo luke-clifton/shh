@@ -70,6 +70,8 @@ test-suite shh-tests
   build-depends:
     base >=4.9,
     async,
+    directory,
+    doctest,
     tasty,
     tasty-quickcheck,
     tasty-hunit,

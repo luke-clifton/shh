@@ -36,6 +36,20 @@ import System.IO
 import System.Posix.Signals
 import System.Process
 
+-- $setup
+-- >>> import Data.Monoid
+-- >>> let cat = exe "cat"
+-- >>> let echo = exe "echo"
+-- >>> let false = exe "false"
+-- >>> let printf = exe "printf"
+-- >>> let shasum = exe "shasum"
+-- >>> let sleep = exe "sleep"
+-- >>> let true = exe "true"
+-- >>> let xargs = exe "xargs"
+-- >>> let yes = exe "yes"
+-- >>> let wc = exe "wc"
+-- >>> let head = exe "head"
+
 -- | This function needs to be called in order to use the library successfully
 -- from GHCi.
 initInteractive :: IO ()
@@ -194,6 +208,9 @@ instance PipeResult Proc where
 -- | Simple @`Proc`@ that writes a `String` to it's @stdout@. This behaves
 -- very much like the standard @echo@ utility, except that there is no
 -- restriction as to what can be in the string argument.
+--
+-- >>> writeOutput "Hello"
+-- Hello
 writeOutput :: PipeResult io => String -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
     hPutStr o s
@@ -375,7 +392,7 @@ readWriteProc p input = liftIO $ readProc p <<< input
 
 -- | Some as `readWriteProc`. Apply a `Proc` to a `String`.
 --
--- >>> apply shasum "Hello"
+-- >> apply shasum "Hello"
 -- "f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -\n"
 apply :: MonadIO io => Proc a -> String -> io String
 apply = readWriteProc
@@ -418,10 +435,10 @@ instance ProcFailure IO where
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
 -- This can be used to prevent a process from interrupting a whole pipeline.
 --
--- >>> false `|>` (sleep 2 >> echo 1)
+-- >>> false |> (sleep 2 >> echo 1)
 -- *** Exception: Command `false` failed [exit 1]
 --
--- >>> (ignoreFailure  false) `|>` (sleep 2 >> echo 1)
+-- >>> (ignoreFailure  false) |> (sleep 2 >> echo 1)
 -- 1
 ignoreFailure :: (Functor m, ProcFailure m) => Proc a -> m ()
 ignoreFailure = void . catchFailure
@@ -670,14 +687,18 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 -- only does one argument per command. Compare the following two lines, which
 -- do the same thing.
 --
--- >>> xargs "--null" "-L1" "echo" -- Using standard xargs utility.
--- >>> xargs1 "\0" echo
+-- >>> printf "a\\0b" |> xargs "--null" "-L1" "echo" |> cat
+-- a
+-- b
+-- >>> printf "a\\0b" |> xargs1 "\0" echo |> cat
+-- a
+-- b
 --
 -- One benefit of this method over the standard @xargs@ is that we can run
 -- Haskell functions as well.
 --
--- >>> find "." "-print0" |> xargs1 "\0" (const $ pure $ Sum 1)
--- Sum {getSum = 1590}
+-- >>> yes |> head "-n" 5 |> xargs1 "\n" (const $ pure $ Sum 1)
+-- Sum {getSum = 5}
 xargs1 :: (NFData a, Monoid a) => String -> (String -> Proc a) -> Proc a
 xargs1 n f = nativeProc $ \i o e -> do
     ls <- endBy n <$> hGetContents i

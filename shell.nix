@@ -7,7 +7,7 @@ let
   f = { mkDerivation, async, base, coreutils, deepseq, directory
       , filepath, hashable, mtl, perl, process, split, stdenv, tasty
       , tasty-hunit, tasty-quickcheck, template-haskell, temporary, unix
-      , vim, hostname, Glob, containers
+      , vim, hostname, Glob, containers, doctest
       }:
       mkDerivation {
         pname = "shh";
@@ -23,7 +23,7 @@ let
           async base directory hashable split temporary
         ];
         executableToolDepends = [ coreutils vim ];
-        testHaskellDepends = [ base tasty tasty-hunit tasty-quickcheck ];
+        testHaskellDepends = [ base tasty tasty-hunit tasty-quickcheck doctest];
         testToolDepends = [ perl vim ];
         description = "Simple shell scripting from Haskell";
         license = stdenv.lib.licenses.bsd3;
