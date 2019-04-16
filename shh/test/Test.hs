@@ -82,12 +82,12 @@ unitTests = testGroup "Unit tests"
     , testCase "Long pipe" $ do
         r <- readProc $ echo "test" |> tr "-d" "e" |> tr "-d" "s"
         r @?= "tt\n"
-    , testCase "Pipe stderr" $ do
+    , testCase "Pipe stderr" $ replicateM_ 100 $ do
         r <- readProc $ echo "test" &> StdErr |!> cat
         r @?= "test\n"
-    , testCase "Lazy read" $ do
-        withRead (cat "/dev/urandom" |> tr "-C" "-d" "a") $ \s -> do
-            take 6 s @?= "aaaaaa"
+    , testCase "Lazy read" $ replicateM_ 100 $ do
+        withRead (cat "/dev/zero") $ \s -> do
+            take 6 s @?= "\0\0\0\0\0\0"
     , testCase "Multiple outputs" $ do
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
