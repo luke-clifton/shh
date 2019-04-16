@@ -18,24 +18,24 @@ defaultShell = "\
 \module Shell where\n\
 \import Shh\n\
 \$(loadEnv SearchPath)\n\
-\ "
+\"
 
 defaultInitGhci = "\
 \:seti -XNoOverloadedLists\n\
 \import Shh\n\
-\ "
+\"
 
 extraInitGhci = "\
 \import Shh.Prompt\n\
 \:set prompt-function formatPrompt \"\\n\\ESC[1;32m[%u@%h:%w]λ \\ESC[0m\"\n\
 \:set prompt-cont \"| \"\n\
-\ "
+\"
 
 
 defaultWrapper = "\
 \#! /usr/bin/env sh\n\
 \exec \"$@\"\n\
-\ "
+\"
 
 debug = putStrLn
 
@@ -66,6 +66,12 @@ main = do
     createDirectoryIfMissing False shhDir
 
     withCurrentDirectory shhDir $ do
+        case a of
+            ["--rebuild"] -> do
+                removeFile "Shell.hi"
+                removeFile "Shell.o"
+            [] -> pure ()
+            _ -> error $ "Unknown arguments: " ++ show a
         writeIfMissing "wrapper" defaultWrapper
         setPermissions "wrapper" $
             setOwnerExecutable True $
