@@ -13,7 +13,7 @@ import Data.Word
 import Control.Concurrent.Async
 import System.IO
 
-$(load SearchPath ["tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf", "xargs", "find"])
+$(load SearchPath ["head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf", "xargs", "find"])
 
 main = do
     putStrLn "################################################"
@@ -25,7 +25,7 @@ main = do
     defaultMain tests
 
 tests :: TestTree
-tests = localOption (Timeout 2000000 "2s") $ testGroup "Tests" [unitTests, properties]
+tests = localOption (Timeout 3000000 "3s") $ testGroup "Tests" [unitTests, properties]
 
 bytesToString :: [Word8] -> String
 bytesToString = map (chr . fromIntegral)
@@ -168,5 +168,9 @@ unitTests = testGroup "Unit tests"
     , testCase "xargs1 writeOutput" $ do
         a <- writeOutput "a\0b\0c" |> xargs "--null" "-L1" "echo" |> capture
         b <- writeOutput "a\0b\0c" |> xargs1 "\0" echo |> capture
+        a @?= b
+    , testCase "fixity |>" $ do
+        a <- echo "a" >> echo "b" >> echo "c" |> Main.head "-n" 2 |> capture
+        b <- (echo "a" >> echo "b" >> echo "c") |> Main.head "-n" 2 |> capture
         a @?= b
     ]

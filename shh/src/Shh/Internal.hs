@@ -171,19 +171,12 @@ instance PipeResult Proc where
         pl
         -- We duplicate these so that you can't accidentally close the
         -- real ones.
-        i' <- hDuplicate i
-        o' <- hDuplicate o
-        e' <- hDuplicate e
-
-        -- We NEVER want the process to be able to close stderr because it
-        -- is shared by the whole pipeline.
-        -- e' <- hDuplicate e
-
-        (f i' o' e' >>= C.evaluate . force)
-            `finally` (hClose i')
-            `finally` (hClose o')
-            `finally` (hClose e')
-            `finally` pw
+        withDuplicates i o e $ \i' o' e' -> do
+            (f i' o' e' >>= C.evaluate . force)
+                `finally` (hClose i')
+                `finally` (hClose o')
+                `finally` (hClose e')
+                `finally` pw
 
         where
             -- The resource vanished error only occurs when upstream pipe closes.
@@ -685,8 +678,12 @@ xargs1 n f = nativeProc $ \i o e -> do
     r <- liftIO $ forM ls $ \l -> do
         -- Duplicate all the Handles to mimic separate process for each call
         -- to the argument `Proc`.
-        i' <- hDuplicate i
-        o' <- hDuplicate o
-        e' <- hDuplicate e
-        runProc' i' o' e' (f l)
+        withDuplicates i o e $ \i' o' e' -> runProc' i' o' e' (f l)
     pure $ mconcat r
+
+withDuplicate :: Handle -> (Handle -> IO a) -> IO a
+withDuplicate h f = bracket (hDuplicate h) hClose f
+
+withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
+withDuplicates a b c f =
+    withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
