@@ -57,6 +57,10 @@ properties = testGroup "Properties"
         a <- writeOutput s' |> capture
         b <- pureProc (const s') |> capture
         pure $ a === b
+    , testProperty "writeOutput s |> capture >>= writeOutput |> capture === s"
+        $ \(ASCIIString s) -> ioProperty $ do
+            r <- writeOutput s |> capture >>= writeOutput |> capture
+            pure $ r === s
     ]
 
 withTmp :: (FilePath -> IO a) -> IO a

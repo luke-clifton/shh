@@ -50,6 +50,8 @@ It supports
 
  * Capturing of process output
 
+       λ s <- echo "Hello" |> tr "-d" "l" |> capture
+
        λ loggedIn <- nub . words <$> readProc users
        λ putStrLn $ "Logged in users: " ++ show loggedIn
 
@@ -82,6 +84,14 @@ It supports
 
        λ catchCode false
        1
+
+ * "Native" processes, i.e. Haskell functions that behave like a process.
+
+       λ echo "Hello" |> pureProc (map toUpper) |> tr "-d" "L"
+       HEO
+
+ * And much, much more! Look at the documentation on Hackage for a
+   comprehensive overview of all the possibilities.
 
 ## Mnemonics 
 
@@ -160,6 +170,14 @@ it. The use-case for this is to be able to set up the environment for `shh`.
 You might, for example, wrap the execution in a `nix-shell`. Either way,
 it is up to you to make sure that the compiler, and packages you require are
 available, either globally, or provided by the `wrapper` script.
+
+#### Faster Startup
+
+`shh` precompiles your `Shell.hs` file so that starting up `shh` is very
+quick on subsequent launches. Unfortunately, `shh` isn't quite able to detect
+this perfectly. If you see GHCi telling you that it is `Compiling Shell.hs`,
+and you notice the delay when starting `shh`, try manually forcing a rebuild
+by passing in the `--rebuild` argument to `shh`.
 
 #### Nix Wrapper Example
 
