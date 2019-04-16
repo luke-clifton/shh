@@ -173,4 +173,10 @@ unitTests = testGroup "Unit tests"
         a <- echo "a" >> echo "b" >> echo "c" |> Main.head "-n" 2 |> capture
         b <- (echo "a" >> echo "b" >> echo "c") |> Main.head "-n" 2 |> capture
         a @?= b
+    , testCase "pureProc . const === writeOutput (spam test)" $ replicateM_ 3000 $ do
+        let
+            s = ""
+        a <- writeOutput s |> capture
+        b <- pureProc (const s) |> capture
+        a @?= b
     ]
