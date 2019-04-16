@@ -681,9 +681,11 @@ xargs1 n f = nativeProc $ \i o e -> do
         withDuplicates i o e $ \i' o' e' -> runProc' i' o' e' (f l)
     pure $ mconcat r
 
+-- | Bracket a hDuplicate
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
 withDuplicate h f = bracket (hDuplicate h) hClose f
 
+-- | Bracket three hDuplicates.
 withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
