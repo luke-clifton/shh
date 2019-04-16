@@ -1,8 +1,0 @@
-language: haskell
-ghc:
-  - "8.6"
-  - "8.4"
-
-install: echo Nope
-
-script: cabal new-build all --enable-tests && cabal new-test all
