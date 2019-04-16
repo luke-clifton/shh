@@ -24,8 +24,7 @@ main = do
     putStrLn " failures, please check that it's not because"
     putStrLn " they are missing."
     putStrLn "################################################"
-    print <$> getCurrentDirectory
-    withCurrentDirectory "shh" $ doctest ["--fast", "-isrc", "src/Shh/Internal.hs"]
+    doctest ["--fast", "-isrc", "src/Shh/Internal.hs"]
     defaultMain tests
 
 tests :: TestTree

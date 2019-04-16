@@ -209,7 +209,7 @@ instance PipeResult Proc where
 -- very much like the standard @echo@ utility, except that there is no
 -- restriction as to what can be in the string argument.
 --
--- >>> writeOutput "Hello"
+-- >>> echo "" |> writeOutput "Hello"
 -- Hello
 writeOutput :: PipeResult io => String -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
