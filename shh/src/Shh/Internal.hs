@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -15,6 +16,10 @@ module Shh.Internal where
 
 import GHC.IO.Exception
 import GHC.IO.Handle
+import GHC.IO.Handle.FD
+import GHC.IO.Handle.Internals
+import GHC.IO.Handle.Types hiding (read)
+import GHC.IO.Device hiding (read)
 import System.IO.Error
 
 import Control.Concurrent.Async
@@ -27,6 +32,7 @@ import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import Data.Typeable (cast)
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
@@ -209,7 +215,7 @@ instance PipeResult Proc where
 -- very much like the standard @echo@ utility, except that there is no
 -- restriction as to what can be in the string argument.
 --
--- >>> echo "" |> writeOutput "Hello"
+-- >>> writeOutput "Hello"
 -- Hello
 writeOutput :: PipeResult io => String -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
@@ -710,9 +716,17 @@ xargs1 n f = nativeProc $ \i o e -> do
 
 -- | Bracket a hDuplicate
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
-withDuplicate h f = bracket (hDuplicate h) hClose f
+withDuplicate h f = bracket (hDup h) hClose f
 
 -- | Bracket three hDuplicates.
 withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
+
+hDup :: Handle -> IO Handle
+hDup h = do
+    f <- handleToFd h
+    dt <- devType f
+    enc <- hGetEncoding h
+    f' <- dup f
+    mkHandleFromFD f' RegularFile "test"  ReadWriteMode True enc
