@@ -45,6 +45,7 @@ import System.Posix.Signals
 import System.Process
 
 -- $setup
+-- For doc-tests. Not sure I can use TH in doc tests.
 -- >>> import Data.Monoid
 -- >>> let cat = exe "cat"
 -- >>> let echo = exe "echo"
@@ -59,7 +60,8 @@ import System.Process
 -- >>> let yes = exe "yes"
 
 -- | This function needs to be called in order to use the library successfully
--- from GHCi.
+-- from GHCi. If you use the @formatPrompt@ function from the @shh-extras@
+-- package, this will be automatically called for you.
 initInteractive :: IO ()
 initInteractive = do
     hSetBuffering stdin LineBuffering
