@@ -14,6 +14,7 @@
 -- | See documentation for "Shh".
 module Shh.Internal where
 
+import Control.Concurrent.MVar
 import Control.Concurrent.Async
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
@@ -24,9 +25,14 @@ import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import GHC.IO.Device (dup, IODeviceType(RegularFile))
+import Data.Typeable
+import GHC.IO.BufferedIO
+import GHC.IO.Device as IODevice hiding (read)
+import GHC.IO.Encoding
 import GHC.IO.Exception (IOErrorType(ResourceVanished))
-import GHC.IO.Handle.FD (handleToFd, mkHandleFromFD)
+import GHC.IO.Handle
+import GHC.IO.Handle.Internals
+import GHC.IO.Handle.Types
 import GHC.IO.Handle.Types (Handle(..))
 import Language.Haskell.TH
 import qualified System.Directory as Dir
@@ -234,6 +240,11 @@ writeError s = nativeProc $ \_ _ e -> do
 readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
+
+readInputP :: (NFData a, PipeResult io) => (String -> Proc a) -> io a
+readInputP f = nativeProc $ \i o e -> do
+    s <- hGetContents i
+    liftIO $ runProc' i o e (f s)
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
 -- it to @stdout@.
@@ -727,10 +738,49 @@ withDuplicates a b c f =
 -- hDuplicate tries to "flush" read buffers by seeking backwards, which doesn't
 -- work for streams/pipes. Since we are simulating a @fork + exec@ in @`nativeProc`@,
 -- losing the buffers is actually the expected behaviour.
+--
+-- Code basically copied from
+-- http://hackage.haskell.org/package/base-4.12.0.0/docs/src/GHC.IO.Handle.html#hDuplicate
+-- with minor modifications.
 hDup :: Handle -> IO Handle
-hDup h@(FileHandle p _) = do
-    f <- handleToFd h
-    enc <- hGetEncoding h
-    f' <- dup f
-    mkHandleFromFD f' RegularFile p  ReadWriteMode True enc
-hDup _ = error "You called hDup with an invalid Handle. But that shouldn't happen."
+hDup h@(FileHandle path m) = do
+  withHandle_' "hDup" h m $ \h_ ->
+      dupHandleShh path h Nothing h_ (Just handleFinalizer)
+hDup h@(DuplexHandle path r w) = do
+  (FileHandle _ write_m) <-
+     withHandle_' "hDup" h w $ \h_ ->
+        dupHandleShh path h Nothing h_ (Just handleFinalizer)
+  (FileHandle _ read_m) <-
+    withHandle_' "hDup" h r $ \h_ ->
+        dupHandleShh path h (Just write_m) h_  Nothing
+  return (DuplexHandle path read_m write_m)
+
+-- | Helper function for duplicating a Handle
+dupHandleShh :: FilePath
+          -> Handle
+          -> Maybe (MVar Handle__)
+          -> Handle__
+          -> Maybe HandleFinalizer
+          -> IO Handle
+dupHandleShh filepath h other_side h_@Handle__{..} mb_finalizer = do
+  case other_side of
+    Nothing -> do
+       new_dev <- IODevice.dup haDevice
+       dupHandleShh_ new_dev filepath other_side h_ mb_finalizer
+    Just r  ->
+       withHandle_' "dupHandleShh" h r $ \Handle__{haDevice=dev} -> do
+         dupHandleShh_ dev filepath other_side h_ mb_finalizer
+
+-- | Helper function for duplicating a Handle
+dupHandleShh_ :: (IODevice dev, BufferedIO dev, Typeable dev) => dev
+           -> FilePath
+           -> Maybe (MVar Handle__)
+           -> Handle__
+           -> Maybe HandleFinalizer
+           -> IO Handle
+dupHandleShh_ new_dev filepath other_side Handle__{..} mb_finalizer = do
+   -- XXX wrong!
+  mb_codec <- if isJust haEncoder then fmap Just getLocaleEncoding else return Nothing
+  mkHandle new_dev filepath haType True{-buffered-} mb_codec
+      NewlineMode { inputNL = haInputNL, outputNL = haOutputNL }
+      mb_finalizer other_side

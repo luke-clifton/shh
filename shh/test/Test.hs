@@ -15,7 +15,10 @@ import Data.Word
 import Control.Concurrent.Async
 import System.IO
 
-$(load SearchPath ["head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep", "rm", "printf", "xargs", "find"])
+load SearchPath
+    ["wc", "head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep"
+    , "rm", "printf", "xargs", "find"
+    ]
 
 main = do
     putStrLn "################################################"
@@ -28,7 +31,7 @@ main = do
     defaultMain tests
 
 tests :: TestTree
-tests = localOption (Timeout 3000000 "3s") $ testGroup "Tests" [unitTests, properties]
+tests = localOption (Timeout 4000000 "4s") $ testGroup "Tests" [unitTests, properties]
 
 bytesToString :: [Word8] -> String
 bytesToString = map (chr . fromIntegral)
@@ -61,6 +64,11 @@ properties = testGroup "Properties"
         $ \(ASCIIString s) -> ioProperty $ do
             r <- writeOutput s |> capture >>= writeOutput |> capture
             pure $ r === s
+    , testProperty "pureProc id === readInputP (\\s -> writeOutput s)"
+        $ \(ASCIIString s) -> ioProperty $ do
+            a <- writeOutput s |> pureProc id |> capture
+            b <- writeOutput s |> readInputP (\s -> writeOutput s) |> capture
+            pure $ a === b
     ]
 
 withTmp :: (FilePath -> IO a) -> IO a
@@ -186,4 +194,8 @@ unitTests = testGroup "Unit tests"
         a <- writeOutput s |> capture
         b <- pureProc (const s) |> capture
         a @?= b
+    , testCase "complex example with intermediate handles (>BUFSIZ)" $ do
+        let c = 20000000
+        s <- readTrim $ cat "/dev/urandom" |> readInputP (\s -> writeOutput (map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c"
+        show c @?= s
     ]

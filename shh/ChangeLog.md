@@ -1,11 +1,14 @@
 # Revision history for shh
 
+## 0.4.0.0 -- 2019-04-16
+
 * Pre-compile Shell.hs for faster loading of shh shell
 * Introduce `nativeProc` interface and related functions (`pureProc`...)
 * Allow type-changing `|>` which enables `capture` and
   similar "processes" to replace the less consistent `readProc`
   family of functions.  `s <- readProc $ echo "Hello"` can now
-  be written `s <- echo "Hello" |> capture`
+  be written `s <- echo "Hello" |> capture`. This allows capturing
+  within the `Proc` monad to manipulate the stream in Haskell.
 * Introduce `xargs1` function which can replace some uses of the `xargs`
   utility, and provides a type-checked, and spell-checked interface
   similar to `xargs`.

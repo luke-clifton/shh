@@ -2,7 +2,7 @@ name:                shh
 version:             0.3.1.3
 synopsis:            Simple shell scripting from Haskell
 description:         Provides a shell scripting environment for Haskell. It
-                     helps you all external binaries, and allows you to
+                     helps you use external binaries, and allows you to
                      perform many shell-like functions, such as piping
                      and redirection.
 license:             BSD3
