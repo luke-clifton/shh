@@ -737,7 +737,13 @@ withDuplicates a b c f =
 --
 -- hDuplicate tries to "flush" read buffers by seeking backwards, which doesn't
 -- work for streams/pipes. Since we are simulating a @fork + exec@ in @`nativeProc`@,
--- losing the buffers is actually the expected behaviour.
+-- losing the buffers is actually the expected behaviour. (System.Process doesn't
+-- attempt to flush the buffers).
+--
+-- NB: An alternate solution that we could implement (even for System.Process forks)
+-- is to create a fresh pipe and spawn an async task to forward buffered content
+-- from the original handle if there is something in the buffer. My concern would
+-- be that it might be a performance hit that people aren't expecting.
 --
 -- Code basically copied from
 -- http://hackage.haskell.org/package/base-4.12.0.0/docs/src/GHC.IO.Handle.html#hDuplicate
