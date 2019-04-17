@@ -172,7 +172,42 @@ echo (a ++ ".com")
 ```
 
 NB: Or look at libraries like [interpolate](http://hackage.haskell.org/package/interpolate/docs/Data-String-Interpolate.html)
+
 ```haskell
 let a = example
 echo [i|#{a}.com|]
+```
+
+## Forking (async) processes
+
+```bash
+task_a &
+p=$?
+task_b
+wait $p
+```
+
+Concurrency is pretty hard to do in a shell script in a robust way, so you
+often see something like the above, where maybe `task_a` has started a
+service that `task_b` needs to use. The shell case doesn't really handle
+the situation where `task_a` fails, but we probably do actually want to do
+something in that scenario.
+
+```haskell
+-- Very similar to the original shell script
+withAsync task_a $ \p -> do
+    task_b
+    wait p
+
+-- Waits for both processes to exit normally, but will terminate the other
+-- process if something goes wrong, e.g. if task_a exits prematurely, task_b
+-- will be cancelled.
+concurrently_ task_a task_b
+
+-- Waits for the first one to finish, and kills the other one as soon as that
+-- happens. Say, if task_a is a webservice that task_b is going to use, but
+-- we want to shut down that service once task_b is done. In the original
+-- shell script, this would have been an action that task_b would have to
+-- take explicitly, by sending a signal to the process.
+race_ task_a task_b
 ```
