@@ -179,6 +179,9 @@ this perfectly. If you see GHCi telling you that it is `Compiling Shell`,
 and you notice the delay when starting `shh`, try manually forcing a rebuild
 by passing in the `--rebuild` argument to `shh`.
 
+This is particularly likely to happen if you upgrade your GHC, or installed
+packages, or even `shh` itself.
+
 #### Nix Wrapper Example
 
 The following snippet could act as a `wrapper` file to set up a suitable
@@ -191,4 +194,3 @@ environment using `nix-shell`
 ### Script Usage
 
 TODO: Fill this in once the user experience is better.
-    
