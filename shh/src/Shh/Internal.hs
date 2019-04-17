@@ -752,43 +752,45 @@ withDuplicates a b c f =
 -- with minor modifications.
 hDup :: Handle -> IO Handle
 hDup h@(FileHandle path m) = do
-  withHandle_' "hDup" h m $ \h_ ->
-      dupHandleShh path h Nothing h_ (Just handleFinalizer)
-hDup h@(DuplexHandle path r w) = do
-  (FileHandle _ write_m) <-
-     withHandle_' "hDup" h w $ \h_ ->
+    withHandle_' "hDup" h m $ \h_ ->
         dupHandleShh path h Nothing h_ (Just handleFinalizer)
-  (FileHandle _ read_m) <-
-    withHandle_' "hDup" h r $ \h_ ->
-        dupHandleShh path h (Just write_m) h_  Nothing
-  return (DuplexHandle path read_m write_m)
+hDup h@(DuplexHandle path r w) = do
+    (FileHandle _ write_m) <-
+        withHandle_' "hDup" h w $ \h_ ->
+            dupHandleShh path h Nothing h_ (Just handleFinalizer)
+    (FileHandle _ read_m) <-
+        withHandle_' "hDup" h r $ \h_ ->
+            dupHandleShh path h (Just write_m) h_  Nothing
+    return (DuplexHandle path read_m write_m)
 
 -- | Helper function for duplicating a Handle
-dupHandleShh :: FilePath
-          -> Handle
-          -> Maybe (MVar Handle__)
-          -> Handle__
-          -> Maybe HandleFinalizer
-          -> IO Handle
+dupHandleShh
+    :: FilePath
+    -> Handle
+    -> Maybe (MVar Handle__)
+    -> Handle__
+    -> Maybe HandleFinalizer
+    -> IO Handle
 dupHandleShh filepath h other_side h_@Handle__{..} mb_finalizer = do
-  case other_side of
-    Nothing -> do
-       new_dev <- IODevice.dup haDevice
-       dupHandleShh_ new_dev filepath other_side h_ mb_finalizer
-    Just r  ->
-       withHandle_' "dupHandleShh" h r $ \Handle__{haDevice=dev} -> do
-         dupHandleShh_ dev filepath other_side h_ mb_finalizer
+    case other_side of
+        Nothing -> do
+            new_dev <- IODevice.dup haDevice
+            dupHandleShh_ new_dev filepath other_side h_ mb_finalizer
+        Just r  ->
+            withHandle_' "dupHandleShh" h r $ \Handle__{haDevice=dev} -> do
+                dupHandleShh_ dev filepath other_side h_ mb_finalizer
 
 -- | Helper function for duplicating a Handle
-dupHandleShh_ :: (IODevice dev, BufferedIO dev, Typeable dev) => dev
-           -> FilePath
-           -> Maybe (MVar Handle__)
-           -> Handle__
-           -> Maybe HandleFinalizer
-           -> IO Handle
+dupHandleShh_
+    :: (IODevice dev, BufferedIO dev, Typeable dev) => dev
+    -> FilePath
+    -> Maybe (MVar Handle__)
+    -> Handle__
+    -> Maybe HandleFinalizer
+    -> IO Handle
 dupHandleShh_ new_dev filepath other_side Handle__{..} mb_finalizer = do
-   -- XXX wrong!
-  mb_codec <- if isJust haEncoder then fmap Just getLocaleEncoding else return Nothing
-  mkHandle new_dev filepath haType True{-buffered-} mb_codec
-      NewlineMode { inputNL = haInputNL, outputNL = haOutputNL }
-      mb_finalizer other_side
+    -- XXX wrong!
+    mb_codec <- if isJust haEncoder then fmap Just getLocaleEncoding else return Nothing
+    mkHandle new_dev filepath haType True{-buffered-} mb_codec
+        NewlineMode { inputNL = haInputNL, outputNL = haOutputNL }
+        mb_finalizer other_side
