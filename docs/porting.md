@@ -189,11 +189,12 @@ wait $p
 
 Concurrency is pretty hard to do in a shell script in a robust way, so you
 often see something like the above, where maybe `task_a` has started a
-service that `task_b` needs to use. The shell case doesn't really handle
-the situation where `task_a` fails, but we probably do actually want to do
-something in that scenario.
+service that `task_b` needs to use. It is unusual for someone to put in the
+effort of dealing with all the failure scenarios, as this gets pretty messy.
 
 ```haskell
+import Control.Concurrent.Async
+
 -- Very similar to the original shell script
 withAsync task_a $ \p -> do
     task_b
@@ -210,4 +211,55 @@ concurrently_ task_a task_b
 -- shell script, this would have been an action that task_b would have to
 -- take explicitly, by sending a signal to the process.
 race_ task_a task_b
+```
+
+## Reacting to failure
+
+```bash
+false || echo "It failed"
+```
+
+```haskell
+false `catch` \Failure{} -> echo "It failed"
+```
+
+## Reacting to success
+
+```bash
+true && echo "It worked"
+```
+
+```haskell
+-- Shh throws exceptions on failure, so it is implicit that the previous
+-- command succeeded. So, we just sequence them.
+
+true >> echo "It worked"
+
+-- Or simply
+
+true
+echo "It worked"
+```
+
+## Heredocs
+
+```bash
+cat <<EOF
+A here doc is here in the script, and
+can span multiple lines.
+EOF
+```
+
+```haskell
+-- Using native Haskell string syntax.
+cat <<<"\
+\A here doc is here in the script, and\n\
+\can span multiple lines.\n\
+\"
+
+-- Or, using an interpolation quasi-quoter library
+cat <<< [r|
+A here doc is here in the script, and
+can span multiple lines.
+|]
 ```
