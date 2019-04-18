@@ -112,6 +112,14 @@ registered. This get's tricky, and fragile, in bash.
 
 NB: Use bracket for resource acquisition and release.
 
+```haskell
+-- Guarantee the cleanup of a temporary file
+bracket
+    (readTrim mktemp)
+    rm
+    $ \tmpfile -> use_temp_file
+```
+
 ## Functions
 
 ```bash
