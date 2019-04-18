@@ -77,16 +77,14 @@ that exception.
 ```haskell
 -- Use the monad instance
 (echo "a" >> echo "b") |> wc "-l"
-```
 
-NB: You can of course use do notation, and pull it out for clarity.
+-- Or, using do-notation
 
-```haskell
-let
-    subCommand = do
-        echo "a"
-        echo "b"
-subCommand |> wc "-l"
+( do
+    echo "a"
+    echo "b"
+) |> wc "-l"
+
 ```
 
 ## Exit Traps
