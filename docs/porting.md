@@ -79,6 +79,7 @@ that exception.
 (echo "a" >> echo "b") |> wc "-l"
 
 -- Or, using do-notation
+do {echo "a"; echo "b"} |> wc "-l"
 
 ( do
     echo "a"
