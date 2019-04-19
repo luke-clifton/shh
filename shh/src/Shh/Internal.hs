@@ -298,6 +298,8 @@ withRead p f = p |> readInput f
 data Stream = StdOut | StdErr | Truncate FilePath | Append FilePath
 
 -- | Shortcut for @`Truncate` "\/dev\/null"@
+-- 
+-- >>> echo "Hello" &> devNull
 devNull :: Stream
 devNull = Truncate "/dev/null"
 
