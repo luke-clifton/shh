@@ -680,7 +680,8 @@ loadAnnotatedEnv ref f = do
     pure (concat i)
 
 -- | Split a string separated by the provided separator. Trailing separators
--- are ignored, and do not produce an empty string.
+-- are ignored, and do not produce an empty string. Compatible with the
+-- output of most CLI programs, such as @find -print0@.
 --
 -- >>> split "\n" "a\nb\n"
 -- ["a","b"]
@@ -760,17 +761,23 @@ xargs1 n f = readInputSplitP n (fmap mconcat . mapM f)
 readInputP :: (NFData a, PipeResult io) => (String -> Proc a) -> io a
 readInputP f = nativeProc $ \i o e -> do
     s <- hGetContents i
-    withFile "/dev/null" ReadMode $ \i' ->
+    withNullInput $ \i' ->
         liftIO $ runProc' i' o e (f s)
 
+-- | Like @`readInputP`@, but splits the input.
 readInputSplitP :: (NFData a, PipeResult io) => String -> ([String] -> Proc a) -> io a
 readInputSplitP s f = readInputP (f . split s)
 
+-- | Like @`readInputP`@, but splits the input on 0 bytes.
 readInputSplit0P :: (NFData a, PipeResult io) => ([String] -> Proc a) -> io a
 readInputSplit0P = readInputSplitP "\0"
 
+-- | Like @`readInputP`@, but splits the input on new lines.
 readInputLinesP :: (NFData a, PipeResult io) => ([String] -> Proc a) -> io a
 readInputLinesP = readInputSplitP "\n"
+
+withNullInput :: (Handle -> IO a) -> IO a
+withNullInput = withFile "/dev/null" ReadMode
 
 -- | Bracket a @`hDup`@
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
@@ -781,9 +788,10 @@ withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> I
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
 
+-- | Bracket two @`hDup`@s and provide a null input handle.
 withDuplicateNullInput :: Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
 withDuplicateNullInput a b f = do
-    withFile "/dev/null" ReadMode $ \i -> do
+    withNullInput $ \i -> do
         withDuplicate a $ \a' -> withDuplicate b $ \b' -> f i a' b'
 
 -- | Duplicate a @`Handle`@ without trying to flush buffers. Only works on @`FileHandle`@s.
