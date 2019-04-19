@@ -58,6 +58,7 @@ import System.Process
 -- >>> let wc = exe "wc"
 -- >>> let xargs = exe "xargs"
 -- >>> let yes = exe "yes"
+-- >>> let some_command = writeOutput "this is stdout" >> (writeOutput "this is stderr" &> StdErr)
 
 -- | This function needs to be called in order to use the library successfully
 -- from GHCi. If you use the @formatPrompt@ function from the @shh-extras@
@@ -137,7 +138,8 @@ class PipeResult f where
     (&!>) :: Proc a -> Stream -> f a
     infixl 9 &!>
 
-    -- | Lift a Haskell function into a `Proc`.
+    -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
+    -- @stdout@ and @stderr@ of the resulting @`Proc`@
     nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
 
 -- | Flipped version of `|>`
@@ -243,17 +245,26 @@ readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
 
+-- | Like @`readInput`@, but @`split`@s the string.
+--
+-- >>> yes |> readInputSplit "\n" (pure . take 3)
+-- ["y","y","y"]
 readInputSplit :: (NFData a, PipeResult io) => String -> ([String] -> IO a) -> io a
 readInputSplit s f = readInput (f . split s)
 
+-- | Like @`readInput`@, but @`split`@s the string on the 0 byte.
 readInputSplit0 :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
 readInputSplit0 = readInputSplit "\0"
 
+-- | Like @`readInput`@, but @`split`@s the string on new lines.
 readInputLines :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
 readInputLines = readInputSplit "\n"
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
--- it to @stdout@.
+-- it to @stdout@. The input can be infinite.
+--
+-- >>> yes |> pureProc (take 4) |> capture
+-- "y\ny\n"
 pureProc :: PipeResult io => (String -> String) -> io ()
 pureProc f = nativeProc $ \i o _ -> do
     s <- hGetContents i
@@ -262,7 +273,9 @@ pureProc f = nativeProc $ \i o _ -> do
 -- | Captures the stdout of a process and prefixes all the lines with
 -- the given string.
 --
--- some_command |> prefixLines "stdout: " |!> prefixLines "stderr: " &> StdErr
+-- >>> some_command |> prefixLines "stdout: " |!> prefixLines "stderr: " &> StdErr
+-- stdout: this is stdout
+-- stderr: this is stderr
 prefixLines :: PipeResult io => String -> io ()
 prefixLines s = pureProc $ unlines . map (s ++) . lines
 

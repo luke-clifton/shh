@@ -16,6 +16,9 @@ module Shh
     -- | === "Native" Processes
     -- You can also create native Haskell @`Proc`@s which behave the same
     -- way, but simply run Haskell functions instead of external processes.
+    -- 
+    -- NB: The functions here that operate on @String@s from @stdin@ read them
+    -- lazily, and can be used in a streaming fashion.
     , pureProc
     , writeOutput, writeError
     , prefixLines
@@ -25,6 +28,9 @@ module Shh
     , readInputSplit0
     , readInputLines
     , readInputP
+    , readInputSplitP
+    , readInputSplit0P
+    , readInputLinesP
     , xargs1
     -- | == Piping and Redirection
     , PipeResult(..)
