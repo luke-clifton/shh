@@ -23,6 +23,10 @@ module Shh
     , writeOutput, writeError
     , prefixLines
     , capture
+    , captureTrim
+    , captureSplit
+    , captureSplit0
+    , captureLines
     , readInput
     , readInputSplit
     , readInputSplit0

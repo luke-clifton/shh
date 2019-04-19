@@ -336,7 +336,6 @@ instance Applicative Proc where
         a' <- a
         pure (f' a')
         
-
 instance Monad Proc where
     (Proc a) >>= f = Proc $ \i o e pl pw -> do
         ar <- a i o e pl (pure ())
@@ -406,6 +405,9 @@ capture = readInput pure
 
 -- | Like @'capture'@, except that it @'trim'@s leading and trailing white
 -- space.
+--
+-- >>> printf "Hello" |> md5sum |> captureTrim
+-- "8b1a9953c4611296a827abf8c47804d7  -"
 captureTrim :: PipeResult io => io String
 captureTrim = readInput (pure . trim)
 
@@ -418,6 +420,10 @@ captureSplit s = readInput (pure . endBy s)
 -- | Same as @'captureSplit' "\0"@.
 captureSplit0 :: PipeResult io => io [String]
 captureSplit0 = captureSplit "\0"
+
+-- | Same as @'captureSplit' "\n"@.
+captureLines :: PipeResult io => io [String]
+captureLines = captureSplit "\n"
 
 -- | Apply a transformation function to the string before the IO action.
 withRead' :: (NFData b, PipeResult io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
