@@ -243,10 +243,14 @@ readInput :: (NFData a, PipeResult io) => (String -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
 
-readInputP :: (NFData a, PipeResult io) => (String -> Proc a) -> io a
-readInputP f = nativeProc $ \i o e -> do
-    s <- hGetContents i
-    liftIO $ runProc' i o e (f s)
+readInputSplit :: (NFData a, PipeResult io) => String -> ([String] -> IO a) -> io a
+readInputSplit s f = readInput (f . split s)
+
+readInputSplit0 :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
+readInputSplit0 = readInputSplit "\0"
+
+readInputLines :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
+readInputLines = readInputSplit "\n"
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
 -- it to @stdout@.
@@ -385,9 +389,28 @@ readProc p = withRead p pure
 capture :: PipeResult io => io String
 capture = readInput pure
 
+-- | Like @'capture'@, except that it @'trim'@s leading and trailing white
+-- space.
+captureTrim :: PipeResult io => io String
+captureTrim = readInput (pure . trim)
+
+-- | Like @'capture'@, but splits the input using the provided separator.
+--
+-- NB: This is strict. If you want a streaming version, use `readInput`
+captureSplit :: PipeResult io => String -> io [String]
+captureSplit s = readInput (pure . endBy s)
+
+-- | Same as @'captureSplit' "\0"@.
+captureSplit0 :: PipeResult io => io [String]
+captureSplit0 = captureSplit "\0"
+
 -- | Apply a transformation function to the string before the IO action.
 withRead' :: (NFData b, PipeResult io) => (String -> a) -> Proc x -> (a -> IO b) -> io b
 withRead' f p io = withRead p (io . f)
+
+-- | Like @'withRead'@ except it splits the string with the provided separator.
+withReadSplit :: (NFData b, PipeResult io) => String -> Proc a -> ([String] -> IO b) -> io b
+withReadSplit = withRead' . split
 
 -- | Like @'withRead'@ except it splits the string with @'split0'@ first.
 withReadSplit0 :: (NFData b, PipeResult io) => Proc a -> ([String] -> IO b) -> io b
@@ -656,6 +679,17 @@ loadAnnotatedEnv ref f = do
         rawExe (f $ takeFileName bin) bin
     pure (concat i)
 
+-- | Split a string separated by the provided separator. Trailing separators
+-- are ignored, and do not produce an empty string.
+--
+-- >>> split "\n" "a\nb\n"
+-- ["a","b"]
+--
+-- >>> split "\n" "a\nb"
+-- ["a","b"]
+split :: String -> String -> [String]
+split = endBy
+
 -- | Function that splits '\0' separated list of strings. Useful in conjunction
 -- with @find . "-print0"@.
 split0 :: String -> [String]
@@ -718,13 +752,25 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 -- >>> yes |> head "-n" 5 |> xargs1 "\n" (const $ pure $ Sum 1)
 -- Sum {getSum = 5}
 xargs1 :: (NFData a, Monoid a) => String -> (String -> Proc a) -> Proc a
-xargs1 n f = nativeProc $ \i o e -> do
-    ls <- endBy n <$> hGetContents i
-    r <- liftIO $ forM ls $ \l -> do
-        -- Duplicate all the Handles to mimic separate process for each call
-        -- to the argument `Proc`.
-        withDuplicates i o e $ \i' o' e' -> runProc' i' o' e' (f l)
-    pure $ mconcat r
+xargs1 n f = readInputSplitP n (fmap mconcat . mapM f)
+
+-- | Simple @`Proc`@ that reads it's input and can react to the output by
+-- calling other @`Proc`@'s which can write something to it's stdout.
+-- The internal @`Proc`@ is given @/dev/null@ as it's input.
+readInputP :: (NFData a, PipeResult io) => (String -> Proc a) -> io a
+readInputP f = nativeProc $ \i o e -> do
+    s <- hGetContents i
+    withFile "/dev/null" ReadMode $ \i' ->
+        liftIO $ runProc' i' o e (f s)
+
+readInputSplitP :: (NFData a, PipeResult io) => String -> ([String] -> Proc a) -> io a
+readInputSplitP s f = readInputP (f . split s)
+
+readInputSplit0P :: (NFData a, PipeResult io) => ([String] -> Proc a) -> io a
+readInputSplit0P = readInputSplitP "\0"
+
+readInputLinesP :: (NFData a, PipeResult io) => ([String] -> Proc a) -> io a
+readInputLinesP = readInputSplitP "\n"
 
 -- | Bracket a @`hDup`@
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
@@ -734,6 +780,11 @@ withDuplicate h f = bracket (hDup h) hClose f
 withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
 withDuplicates a b c f =
     withDuplicate a $ \a' -> withDuplicate b $ \b' -> withDuplicate c $ \c' -> f a' b' c'
+
+withDuplicateNullInput :: Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
+withDuplicateNullInput a b f = do
+    withFile "/dev/null" ReadMode $ \i -> do
+        withDuplicate a $ \a' -> withDuplicate b $ \b' -> f i a' b'
 
 -- | Duplicate a @`Handle`@ without trying to flush buffers. Only works on @`FileHandle`@s.
 --
