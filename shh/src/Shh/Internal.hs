@@ -92,9 +92,8 @@ instance Show Failure where
 instance Exception Failure
 
 -- | This class is used to allow most of the operators in Shh to be
--- polymorphic in their return value. This makes using them in an `IO`
--- context easier (we can avoid having to prepend everything with a
--- `runProc`).
+-- polymorphic in their return value. This makes using them in an `IO` context
+-- easier (we can avoid having to prepend everything with a `runProc`).
 class PipeResult f where
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
@@ -121,20 +120,24 @@ class PipeResult f where
     -- both preceding processes, because they are both going to the same
     -- handle!
     --                                            
-    -- This is probably not what you want, see the `&>` and `&!>` operators
-    -- for redirection.
+    -- See the `&>` and `&!>` operators for redirection.
+    --
+    -- >>> echo "Ignored" |!> wc "-c"
+    -- Ignored
+    -- 0
     (|!>) :: Proc b -> Proc a -> f a
     infixl 1 |!>
 
     -- | Redirect stdout of this process to another location
     --
-    -- > ls &> Append "/dev/null"
+    -- >>> echo "Ignore me" &> Append "/dev/null"
     (&>) :: Proc a -> Stream -> f a
     infixl 9 &>
 
     -- | Redirect stderr of this process to another location
     --
-    -- > ls &!> StdOut
+    -- >>> echo "Shh" &!> StdOut
+    -- Shh
     (&!>) :: Proc a -> Stream -> f a
     infixl 9 &!>
 
@@ -142,7 +145,10 @@ class PipeResult f where
     -- @stdout@ and @stderr@ of the resulting @`Proc`@
     nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
 
--- | Flipped version of `|>`
+-- | Flipped version of `|>` with lower precedence.
+--
+-- >>> captureTrim <| (echo "Hello" |> wc "-c")
+-- "6"
 (<|) :: PipeResult f => Proc a -> Proc b -> f a
 (<|) = flip (|>)
 infixr 1 <|
@@ -154,7 +160,11 @@ instance PipeResult IO where
     a &!> s = runProc $ a &!> s
     nativeProc f = runProc $ nativeProc f
 
--- | Create a pipe, and close both ends on exception.
+-- | Create a pipe, and close both ends on exception. The first argument
+-- is the read end, the second is the write end.
+--
+-- >>> withPipe $ \r w -> hPutStrLn w "test" >> hClose w >> hGetLine r
+-- "test"
 withPipe :: (Handle -> Handle -> IO a) -> IO a
 withPipe k =
     bracket
@@ -229,6 +239,8 @@ writeOutput s = nativeProc $ \_ o _ -> do
 
 -- | Simple @`Proc`@ that writes a `String` to it's @stderr@.
 -- See also @`writeOutput`@.
+-- >>> writeError "Hello" &> devNull
+-- Hello
 writeError :: PipeResult io => String -> io ()
 writeError s = nativeProc $ \_ _ e -> do
     hPutStr e s
@@ -253,10 +265,16 @@ readInputSplit :: (NFData a, PipeResult io) => String -> ([String] -> IO a) -> i
 readInputSplit s f = readInput (f . split s)
 
 -- | Like @`readInput`@, but @`split`@s the string on the 0 byte.
+--
+-- >>> writeOutput "1\02\0" |> readInputSplit0 pure
+-- ["1","2"]
 readInputSplit0 :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
 readInputSplit0 = readInputSplit "\0"
 
 -- | Like @`readInput`@, but @`split`@s the string on new lines.
+--
+-- >>> writeOutput "a\nb\n" |> readInputLines pure
+-- ["a","b"]
 readInputLines :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
 readInputLines = readInputSplit "\n"
 
@@ -280,6 +298,8 @@ prefixLines :: PipeResult io => String -> io ()
 prefixLines s = pureProc $ unlines . map (s ++) . lines
 
 -- | Provide the stdin of a `Proc` from a `String`
+--
+-- Same as @`writeOutput` s |> p@
 writeProc :: PipeResult io => Proc a -> String -> io a
 writeProc p s = writeOutput s |> p
 
@@ -289,7 +309,7 @@ writeProc p s = writeOutput s |> p
 -- code. Most utilities behave correctly with this (e.g. @cat@ will
 -- terminate if you close the handle).
 --
--- NB: @withRead p f === p |> readInput f@
+-- Same as @p |> readInput f@
 withRead :: (PipeResult f, NFData b) => Proc a -> (String -> IO b) -> f b
 withRead p f = p |> readInput f
 
