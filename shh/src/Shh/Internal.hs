@@ -266,7 +266,7 @@ readInputSplit s f = readInput (f . split s)
 
 -- | Like @`readInput`@, but @`split`@s the string on the 0 byte.
 --
--- >>> writeOutput "1\02\0" |> readInputSplit0 pure
+-- >>> writeOutput "1\0\&2\0" |> readInputSplit0 pure
 -- ["1","2"]
 readInputSplit0 :: (NFData a, PipeResult io) => ([String] -> IO a) -> io a
 readInputSplit0 = readInputSplit "\0"
