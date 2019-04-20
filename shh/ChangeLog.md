@@ -1,6 +1,6 @@
 # Revision history for shh
 
-## 0.4.0.0 -- 2019-04-16
+## 0.4.0.0 -- 2019-04-20
 
 * Pre-compile Shell.hs for faster loading of shh shell
 * Introduce `nativeProc` interface and related functions (`pureProc`...)
