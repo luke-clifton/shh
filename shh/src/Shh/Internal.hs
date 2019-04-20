@@ -817,6 +817,7 @@ readInputSplit0P = readInputSplitP "\0"
 readInputLinesP :: (NFData a, PipeResult io) => ([String] -> Proc a) -> io a
 readInputLinesP = readInputSplitP "\n"
 
+-- | Create a null file handle.
 withNullInput :: (Handle -> IO a) -> IO a
 withNullInput = withFile "/dev/null" ReadMode
 
