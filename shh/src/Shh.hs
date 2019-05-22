@@ -90,8 +90,11 @@ module Shh
     , ExecReference(..)
     , load
     , loadEnv
+    , loadFromDirs
+    , loadFromBins
     , loadAnnotated
     , loadAnnotatedEnv
+    , loadAnnotatedFromDirs
     , loadExe
     , loadExeAs
     , pathBins

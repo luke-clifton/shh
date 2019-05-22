@@ -38,7 +38,7 @@ import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
-import System.FilePath (takeFileName)
+import System.FilePath (takeFileName, (</>))
 import System.IO
 import System.IO.Error
 import System.Posix.Signals
@@ -592,6 +592,12 @@ pathBinsAbs :: IO [FilePath]
 pathBinsAbs = do
     pathsVar <- splitOn ":" <$> getEnv "PATH"
     paths <- filterM Dir.doesDirectoryExist pathsVar
+    findBinsIn paths
+
+-- | Get all uniquely named executables from the list of directories. Returns
+-- a list of absolute file names.
+findBinsIn :: [FilePath] -> IO [FilePath]
+findBinsIn paths = do
     ps <- ordNubOn takeFileName . concat <$> mapM (\d -> fmap (\x -> d++('/':x)) <$> Dir.getDirectoryContents d) paths
     filterM (tryBool . fmap Dir.executable . Dir.getPermissions) ps
 
@@ -731,6 +737,24 @@ loadAnnotatedEnv ref f = do
 -- ["a","b"]
 split :: String -> String -> [String]
 split = endBy
+
+-- | Load executables from the given directories
+loadFromDirs :: [FilePath] -> Q [Dec]
+loadFromDirs ps = loadAnnotatedFromDirs ps encodeIdentifier
+
+-- | Load executables from the given directories appended with @"/bin"@.
+--
+-- Useful for use with Nix.
+-- 
+loadFromBins :: [FilePath] -> Q [Dec]
+loadFromBins = loadFromDirs . fmap (</> "bin")
+
+loadAnnotatedFromDirs :: [FilePath] -> (String -> String) -> Q [Dec]
+loadAnnotatedFromDirs ps f = do
+    bins <- runIO $ findBinsIn ps
+    i <- forM bins $ \bin -> do
+        rawExe (f $ takeFileName bin) bin
+    pure (concat i)
 
 -- | Function that splits '\0' separated list of strings. Useful in conjunction
 -- with @find . "-print0"@.
