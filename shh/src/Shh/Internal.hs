@@ -749,6 +749,8 @@ loadFromDirs ps = loadAnnotatedFromDirs ps encodeIdentifier
 loadFromBins :: [FilePath] -> Q [Dec]
 loadFromBins = loadFromDirs . fmap (</> "bin")
 
+-- | Load executables from the given dirs, applying the given transformation
+-- to the filenames.
 loadAnnotatedFromDirs :: [FilePath] -> (String -> String) -> Q [Dec]
 loadAnnotatedFromDirs ps f = do
     bins <- runIO $ findBinsIn ps
