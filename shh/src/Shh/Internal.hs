@@ -20,7 +20,7 @@ import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower, isNumber, ord)
+import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
@@ -675,13 +675,11 @@ encodeIdentifier ident =
     let
         fixBody :: String -> String
         fixBody (c:cs)
-            | isLower  c = c : fixBody cs
-            | isUpper  c = c : fixBody cs
-            | isNumber c = c : fixBody cs
-            | c == '-'   = '_' : fixBody cs
-            | c == '_'   = '\'' : '_' : fixBody cs
-            | c == '.'   = '\'' : '\'' : fixBody cs
-            | otherwise  = printf "'%x'%s" (ord c) (fixBody cs)
+            | isAlphaNum c = c : fixBody cs
+            | c == '-'     = '_' : fixBody cs
+            | c == '_'     = '\'' : '_' : fixBody cs
+            | c == '.'     = '\'' : '\'' : fixBody cs
+            | otherwise    = printf "'%x'%s" (ord c) (fixBody cs)
         fixBody [] = []
 
         fixStart :: String -> String
