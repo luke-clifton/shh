@@ -670,6 +670,18 @@ loadExeAs ref fnName executable = do
 -- Justification for changing @-@ to @_@ is that @-@ appears far more commonly
 -- in executable names than @_@ does, and so we give it the more ergonomic
 -- encoding.
+--
+-- >>> encodeIdentifier "nix-shell"
+-- "nix_shell"
+--
+-- >>> encodeIdentifier "R"
+-- "_R"
+--
+-- >>> encodeIdentifier "x86_64-unknown-linux-gnu-gcc"
+-- "x86'_64_unknown_linux_gnu_gcc"
+--
+-- >>> encodeIdentifier "release.sh"
+-- "release''sh"
 encodeIdentifier :: String -> String
 encodeIdentifier ident =
     let
