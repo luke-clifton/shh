@@ -1,5 +1,10 @@
 # Revision history for shh
 
+## 0.5.0.0 -- 2019-05-23
+
+* Change how identifiers are encoded to avoid clashes in all scenarios
+  (Potentially breaking change)
+
 ## 0.4.0.0 -- 2019-04-20
 
 * Pre-compile Shell.hs for faster loading of shh shell
