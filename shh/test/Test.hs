@@ -39,8 +39,8 @@ bytesToString = map (chr . fromIntegral)
 properties :: TestTree
 properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
-    , testProperty "encodeIdentifier = encodeIdentifier . encodeIdentifier"
-        $ \l -> encodeIdentifier l == encodeIdentifier (encodeIdentifier l)
+    , testProperty "encodeIdentifier creates a unique encoding"
+        $ \(l1,l2) -> (encodeIdentifier l1 == encodeIdentifier l2) == (l1 == l2)
     , testProperty "writeOutput" $ \s -> ioProperty $ do
         let
             s' = bytesToString s
@@ -137,8 +137,8 @@ unitTests = testGroup "Unit tests"
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
         Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . take 3
         r @?= Shh.Failure "false" ["dummy"] 1
-    , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1_3__"
-    , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "t_est"
+    , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1'40'3''_"
+    , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "_T''est"
     , testCase "pureProc closes input" $ do
         r <- readProc $ cat "/dev/urandom" |> pureProc (const "test")
         r @?= "test"

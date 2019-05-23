@@ -20,7 +20,7 @@ import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower, isNumber)
+import Data.Char (isLower, isSpace, isAlphaNum, isUpper, toLower, isNumber, ord)
 import Data.List (dropWhileEnd, intercalate)
 import Data.List.Split (endBy, splitOn)
 import qualified Data.Map as Map
@@ -43,6 +43,7 @@ import System.IO
 import System.IO.Error
 import System.Posix.Signals
 import System.Process
+import Text.Printf
 
 -- $setup
 -- For doc-tests. Not sure I can use TH in doc tests.
@@ -659,26 +660,37 @@ loadExeAs ref fnName executable = do
         Just absExe ->
             rawExe fnName (case ref of { Absolute -> absExe; SearchPath -> executable })
 
--- | Takes a string, and makes a Haskell identifier out of it. There
--- is some chance of overlap. If the string is a path, the filename portion
--- is used. The transformation replaces all non-alphanumeric characters
--- with @'_'@. If the first character is uppercase it is forced into lowercase.
--- If it starts with a number, it is prefixed with `_`. If it overlaps with
--- a reserved word or a builtin, it is suffixed with an `_`.
+
+-- | Takes a string, and makes a Haskell identifier out of it. If the string
+-- is a path, the filename portion is used. The exact transformation is that
+-- alphanumeric characters are unchanged, @-@ becomes @_@, and @'@ is used to
+-- escape all other characters. @_@ becomes @'_@, @.@ becomes @''@ and
+-- anthing else is becomes a hex encoded number surrounded by @'@ characters.
+--
+-- Justification for changing @-@ to @_@ is that @-@ appears far more commonly
+-- in executable names than @_@ does, and so we give it the more ergonomic
+-- encoding.
 encodeIdentifier :: String -> String
 encodeIdentifier ident =
     let
-        i = go (takeFileName ident)
-        go (c:cs)
-            | isLower  c = c : go' cs
-            | isUpper  c = toLower c : go' cs
-            | isNumber c = '_' : go' (c : cs)
-            | otherwise  = go' (c:cs)
-        go [] = "_"
-        go' (c:cs)
-            | isAlphaNum c = c : go' cs
-            | otherwise    = '_' : go' cs
-        go' [] = []
+        fixBody :: String -> String
+        fixBody (c:cs)
+            | isLower  c = c : fixBody cs
+            | isUpper  c = c : fixBody cs
+            | isNumber c = c : fixBody cs
+            | c == '-'   = '_' : fixBody cs
+            | c == '_'   = '\'' : '_' : fixBody cs
+            | c == '.'   = '\'' : '\'' : fixBody cs
+            | otherwise  = printf "'%x'%s" (ord c) (fixBody cs)
+        fixBody [] = []
+
+        fixStart :: String -> String
+        fixStart s@(c : _)
+            | isLower c = s
+            | otherwise = '_' : s
+        fixStart [] = []
+
+        i = fixStart $ fixBody $ takeFileName ident
         -- Includes cd, which has to be a built-in
         reserved = [ "import", "if", "else", "then", "do", "in", "let", "type"
             , "as", "case", "of", "class", "data", "default", "deriving"
@@ -686,6 +698,7 @@ encodeIdentifier ident =
             , "infixr", "mdo", "module", "newtype", "proc", "qualified"
             , "rec", "where", "cd"]
     in if i `elem` reserved then i ++ "_" else i
+
 
 -- | Scans your '$PATH' environment variable and creates a function for each
 -- executable found. Binaries that would not create valid Haskell identifiers
