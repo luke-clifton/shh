@@ -200,3 +200,25 @@ environment using `nix-shell`
 ### Script Usage
 
 TODO: Fill this in once the user experience is better.
+
+## Alternatives
+
+There are quite a few players in the "shell programming for Haskell" field.
+
+This table attempts to summarise some of the differences.
+
+ * `Pipe Style` refers to how processes are joined together
+ * `Via Shell` refers to whether subprocesses are launched directly or via
+   a shell (which can provide a better piping solution at the cost of
+   composability)
+ * `Run in IO` refers to whether commands need to be prefixed with `run` or
+   similar functions to actually execute them.
+ * `TH Helper` refers to whether the use of TH to generate Haskell functions
+   based on commands found at compile time is encouraged in the main library.
+
+| Library | Pipe Style  | Via Shell | Run in IO | Threadsafe `cd` | TH Helper |
+|---------|-------------|-----------|-----------|-----------------|-----------|
+| Shh     | Native      | No        | Yes       | No              | Yes       |
+| Shelly  | Via Haskell | Yes       | No        | Yes             | No        |
+| Turtle  | Via Haskell | Yes       | No        | ?               | No        |
+| shell-conduit | Via Haskell | Yes | No        | ?               | Yes       |
