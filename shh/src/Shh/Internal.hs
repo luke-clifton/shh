@@ -768,7 +768,6 @@ loadFromDirs ps = loadAnnotatedFromDirs ps encodeIdentifier
 -- | Load executables from the given directories appended with @"/bin"@.
 --
 -- Useful for use with Nix.
--- 
 loadFromBins :: [FilePath] -> Q [Dec]
 loadFromBins = loadFromDirs . fmap (</> "bin")
 
@@ -816,7 +815,10 @@ cd' p = do
 
 -- | Helper class for variable number of arguments to @cd@ builtin.
 class Cd a where
-    -- | Mimics the shell builtin "cd"
+    -- | Mimics the shell builtin "cd". Be careful using this function
+    -- in a program, as it doesn't play well with multiple threads. Best
+    -- to just use it in an interactive shell or for very simple
+    -- transliterations of shell scripts.
     cd :: a
 
 instance (io ~ IO ()) => Cd io where
