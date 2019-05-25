@@ -205,7 +205,7 @@ Nixpkgs provides a `writeHaskellBin` function which is very convenient for
 writing quick scripts for your Nix setup.
 
 ```nix
-writers.writeHaskellBin "example" {libraries = [haskellPackages.shh]} ''
+writers.writeHaskellBin "example" {libraries = [haskellPackages.shh];} ''
   {-# LANGUAGE TemplateHaskell #-}
   import Shh
 
