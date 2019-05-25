@@ -199,7 +199,26 @@ environment using `nix-shell`
 
 ### Script Usage
 
-TODO: Fill this in once the user experience is better.
+#### Nix
+
+Nixpkgs provides a `writeHaskellBin` function which is very convenient for
+writing quick scripts for your Nix setup.
+
+```nix
+writers.writeHaskellBin "example" {libraries = [haskellPackages.shh]} ''
+  {-# LANGUAGE TemplateHaskell #-}
+  import Shh
+
+  -- Load binaries from Nix packages. The dependencies will be captured
+  -- in the closure.
+  loadFromBins ["${git}", "${coreutils}", "${curl}"]
+
+  main :: IO ()
+  main = do
+    cat "/a/file"
+    cp "/a/file" "/b/file"
+''
+```
 
 ## Alternatives
 
