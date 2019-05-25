@@ -198,4 +198,7 @@ unitTests = testGroup "Unit tests"
         let c = 20000000
         s <- readTrim $ cat "/dev/urandom" |> readInputP (\s -> writeOutput (map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c"
         show c @?= s
+    , testCase "subshells" $ do
+      s <- readProc $ echo "ac" |> (cat >> echo "bc") |> tr "-d" "c"
+      s @?= "a\nb\n"
     ]
