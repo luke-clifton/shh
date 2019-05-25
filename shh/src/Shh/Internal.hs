@@ -307,7 +307,6 @@ prefixLines :: PipeResult io => ByteString -> io ()
 -- prefixLines s = pureProc $ BC8.intercalate "\n" . map (s <>) . lines
 prefixLines s = pureProc $ \inp -> toLazyByteString $ mconcat
     [ mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
-    , char7 '\n'
     ]
 
 -- | Provide the stdin of a `Proc` from a `ByteString`
