@@ -15,7 +15,7 @@
 -- | See documentation for "Shh".
 module Shh.Internal where
 
-import Prelude hiding (lines)
+import Prelude hiding (lines, unlines)
 
 import Control.Concurrent.MVar
 import Control.Concurrent.Async
@@ -24,8 +24,10 @@ import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString.Lazy (ByteString, hGetContents, hPut)
+import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
-import Data.ByteString.Lazy.UTF8
+import Data.ByteString.Lazy.UTF8 (toString, fromString, lines)
+import Data.ByteString.Lazy.Char8 (hPutStrLn)
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import Data.List (dropWhileEnd, intercalate)
@@ -91,7 +93,7 @@ instance Show Failure where
     show f = concat $
         [ "Command `"
         ]
-        ++ [intercalate " " (show (failureProg f) : map show (failureArgs f))]
+        ++ [intercalate " " (BC8.unpack (failureProg f) : map show (failureArgs f))]
         ++
         [ "` failed [exit "
         , show (failureCode f)
@@ -266,6 +268,9 @@ readInput :: (NFData a, PipeResult io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
 
+unlines :: [ByteString] -> ByteString
+unlines = toLazyByteString . mconcat . map (\l -> lazyByteString l <> char7 '\n')
+
 -- | Like @`readInput`@, but @`split`@s the string.
 --
 -- >>> yes |> readInputSplit "\n" (pure . take 3)
@@ -290,7 +295,7 @@ readInputLines = readInputSplit "\n"
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
 -- it to @stdout@. The input can be infinite.
 --
--- >>> yes |> pureProc (take 4) |> capture
+-- >>> yes |> pureProc (BS.take 4) |> capture
 -- "y\ny\n"
 pureProc :: PipeResult io => (ByteString -> ByteString) -> io ()
 pureProc f = nativeProc $ \i o _ -> do
@@ -305,9 +310,8 @@ pureProc f = nativeProc $ \i o _ -> do
 -- stderr: this is stderr
 prefixLines :: PipeResult io => ByteString -> io ()
 -- prefixLines s = pureProc $ BC8.intercalate "\n" . map (s <>) . lines
-prefixLines s = pureProc $ \inp -> toLazyByteString $ mconcat
-    [ mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
-    ]
+prefixLines s = pureProc $ \inp -> toLazyByteString $
+    mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
 
 -- | Provide the stdin of a `Proc` from a `ByteString`
 --
