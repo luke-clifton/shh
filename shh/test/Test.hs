@@ -1,9 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 module Main where
 
 import System.Directory
 import Shh
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BS
+import Data.ByteString.Lazy.UTF8 (toString, fromString)
+import qualified Data.ByteString.Lazy.Char8 as C8
 import Test.DocTest
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -33,8 +38,12 @@ main = do
 tests :: TestTree
 tests = localOption (Timeout 4000000 "4s") $ testGroup "Tests" [unitTests, properties]
 
-bytesToString :: [Word8] -> String
-bytesToString = map (chr . fromIntegral)
+bytesToString :: [Word8] -> ByteString
+bytesToString = BS.pack
+
+instance Arbitrary ByteString where
+    arbitrary = bytesToString <$> arbitrary
+    shrink = fmap BS.pack . shrink . BS.unpack
 
 properties :: TestTree
 properties = testGroup "Properties"
@@ -51,9 +60,9 @@ properties = testGroup "Properties"
             s' = bytesToString s
         k <- readProc $ s' >>> pureProc id
         pure $ s' === k
-    , testProperty "pureProc (map toUpper)" $ \(ASCIIString s) -> ioProperty $ do
-        k <- readProc $ s >>> pureProc (map toUpper)
-        pure $ map toUpper s === k
+    , testProperty "pureProc (map toUpper)" $ \s -> ioProperty $ do
+        k <- readProc $ s >>> pureProc (C8.map toUpper)
+        pure $ C8.map toUpper s === k
     , testProperty "pureProc . const === writeOutput" $ \s -> ioProperty $ do
         let
             s' = bytesToString s
@@ -61,17 +70,17 @@ properties = testGroup "Properties"
         b <- pureProc (const s') |> capture
         pure $ a === b
     , testProperty "writeOutput s |> capture >>= writeOutput |> capture === s"
-        $ \(ASCIIString s) -> ioProperty $ do
+        $ \s -> ioProperty $ do
             r <- writeOutput s |> capture >>= writeOutput |> capture
             pure $ r === s
     , testProperty "pureProc id === readInputP (\\s -> writeOutput s)"
-        $ \(ASCIIString s) -> ioProperty $ do
+        $ \s -> ioProperty $ do
             a <- writeOutput s |> pureProc id |> capture
             b <- writeOutput s |> readInputP (\s -> writeOutput s) |> capture
             pure $ a === b
     ]
 
-withTmp :: (FilePath -> IO a) -> IO a
+withTmp :: (ByteString -> IO a) -> IO a
 withTmp = bracket (readTrim mktemp) rm
 
 unitTests :: TestTree
@@ -102,7 +111,7 @@ unitTests = testGroup "Unit tests"
         r @?= "test\n"
     , testCase "Lazy read" $ replicateM_ 100 $ do
         withRead (cat "/dev/zero") $ \s -> do
-            take 6 s @?= "\0\0\0\0\0\0"
+            BS.take 6 s @?= "\0\0\0\0\0\0"
     , testCase "Multiple outputs" $ do
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
@@ -135,7 +144,7 @@ unitTests = testGroup "Unit tests"
         Left r <- catchFailure $ readProc $ echo "test" |> true |> false "dummy"
         r @?= Shh.Failure "false" ["dummy"] 1
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . take 3
+        Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . BS.take 3
         r @?= Shh.Failure "false" ["dummy"] 1
     , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1'40'3''_"
     , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "_T''est"
@@ -196,8 +205,8 @@ unitTests = testGroup "Unit tests"
         a @?= b
     , testCase "complex example with intermediate handles (>BUFSIZ)" $ do
         let c = 20000000
-        s <- readTrim $ cat "/dev/urandom" |> readInputP (\s -> writeOutput (map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c"
-        show c @?= s
+        s <- readTrim $ cat "/dev/urandom" |> readInputP (\s -> writeOutput (C8.map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c"
+        show c @?= toString s
     , testCase "subshells" $ do
       s <- readProc $ echo "ac" |> (cat >> echo "bc") |> tr "-d" "c"
       s @?= "a\nb\n"
