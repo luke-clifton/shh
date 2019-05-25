@@ -207,18 +207,36 @@ There are quite a few players in the "shell programming for Haskell" field.
 
 This table attempts to summarise some of the differences.
 
- * `Pipe Style` refers to how processes are joined together
+ * `Pipe Style` refers to how processes are joined together, "native" means
+   that the mechanisms provided by the OS are used, while "via haskell" means
+   that the data is read into the Haskell process, and then written into the
+   subprocess.
  * `Via Shell` refers to whether subprocesses are launched directly or via
-   a shell (which can provide a better piping solution at the cost of
+   a shell (which can provide a "native" piping solution at the cost of
    composability)
  * `Run in IO` refers to whether commands need to be prefixed with `run` or
    similar functions to actually execute them.
  * `TH Helper` refers to whether the use of TH to generate Haskell functions
    based on commands found at compile time is encouraged in the main library.
+ * `Monadic Subshell` refers to the ability to join multiple processes together
+   and feed them all from the same input and to the same output.
+   `echo a | (cat; echo b) | wc -l` should report that 2 lines appeared.
 
-| Library | Pipe Style  | Via Shell | Run in IO | Threadsafe `cd` | TH Helper |
-|---------|-------------|-----------|-----------|-----------------|-----------|
-| Shh     | Native      | No        | Yes       | No              | Yes       |
-| Shelly  | Via Haskell | Yes       | No        | Yes             | No        |
-| Turtle  | Via Haskell | Yes       | No        | ?               | No        |
-| shell-conduit | Via Haskell | Yes | No        | ?               | Yes       |
+
+| Library | Pipe Style  | Via Shell | Run in IO | Threadsafe `cd` | TH Helper | Monadic Subshell | Redirect `stderr` |
+|---------|-------------|-----------|-----------|-----------------|-----------|------------------|-------------------|
+| Shh     | Native      | No        | Yes       | No              | Yes       | Yes              | Yes               |
+| Shelly  | Via Haskell | Yes       | No        | Yes             | No        | No               | Yes               |
+| Turtle  | Via Haskell | Optional  | No        | ?               | No        | No (Alternative) | Yes               |
+| shell-conduit | Via Haskell | Optional | No   | ?               | Yes       | Yes              | No?               |
+
+
+### Errors
+
+| Library | Exception on non-zero | Contains arguments | Contains `stderr` | Terminates pipeline |
+|---------|-----------------------|--------------------|-------------------|---------------------|
+| Shh     | Yes                   | Yes                | No                | Yes                 |
+| Shelly  | Yes                   | Yes                | Yes               | Yes                 |
+| Turtle  | Sometimes             | No                 | No                | ?                   |
+| shell-conduit | Yes             | Yes                | No                | No                  |
+
