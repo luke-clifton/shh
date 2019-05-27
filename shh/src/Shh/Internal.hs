@@ -241,6 +241,11 @@ instance PipeResult Proc where
 -- very much like the standard @printf@ utility, except that there is no
 -- restriction as to what can be in the argument.
 --
+-- NB: @String@ arguments are encoded as UTF8, while @ByteString@ is passed
+-- through. Be aware if you are using @OverloadedStrings@ that you will get
+-- wrong results if using unicode in your string literal and it inferes
+-- anything other than @String@.
+--
 -- >>> writeOutput "Hello"
 -- Hello
 writeOutput :: (ExecArg a, PipeResult io) => a -> io ()
