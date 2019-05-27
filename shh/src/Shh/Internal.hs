@@ -109,7 +109,7 @@ class PipeResult f where
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
     --
-    -- The result is polymorphic in it's output, and can result in either
+    -- The result is polymorphic in its output, and can result in either
     -- another `Proc a` or an `IO a` depending on the context in which it is
     -- used.
     --
@@ -238,9 +238,9 @@ instance PipeResult Proc where
                 | ioeGetErrorType e == ResourceVanished = pure (throw e)
                 | otherwise = throwIO e
 
--- | Simple @`Proc`@ that writes a `ByteString` to it's @stdout@. This behaves
--- very much like the standard @echo@ utility, except that there is no
--- restriction as to what can be in the string argument.
+-- | Simple @`Proc`@ that writes its argument to its @stdout@. This behaves
+-- very much like the standard @printf@ utility, except that there is no
+-- restriction as to what can be in the argument.
 --
 -- >>> writeOutput "Hello"
 -- Hello
@@ -248,18 +248,19 @@ writeOutput :: (ExecArg a, PipeResult io) => a -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
     mapM_ (BC8.hPutStr o) (asArg s)
 
--- | Simple @`Proc`@ that writes a `ByteString` to it's @stderr@.
+-- | Simple @`Proc`@ that writes its argument to its @stderr@.
 -- See also @`writeOutput`@.
+--
 -- >>> writeError "Hello" &> devNull
 -- Hello
 writeError :: (ExecArg a, PipeResult io) => a -> io ()
 writeError s = nativeProc $ \_ _ e -> do
    mapM_ (BC8.hPutStr e) (asArg s)
 
--- | Simple @`Proc`@ that reads it's input, and can react to it with an IO
--- action. Does not write anything to it's output. See also @`capture`@.
+-- | Simple @`Proc`@ that reads its input, and can react to it with an IO
+-- action. Does not write anything to its output. See also @`capture`@.
 --
--- @`readInput`@ uses lazy IO to read it's stdin, and works with infinite
+-- @`readInput`@ uses lazy IO to read its stdin, and works with infinite
 -- inputs.
 --
 -- >>> yes |> readInput (pure . unlines . take 3 . lines)
@@ -319,7 +320,7 @@ prefixLines s = pureProc $ \inp -> toLazyByteString $
 writeProc :: PipeResult io => Proc a -> ByteString -> io a
 writeProc p s = writeOutput s |> p
 
--- | Run a process and capture it's output lazily. Once the continuation
+-- | Run a process and capture its output lazily. Once the continuation
 -- is completed, the handles are closed. However, the process is run
 -- until it naturally terminates in order to capture the correct exit
 -- code. Most utilities behave correctly with this (e.g. @cat@ will
@@ -434,7 +435,7 @@ mkProc = mkProc' False
 readProc :: PipeResult io => Proc a -> io ByteString
 readProc p = withRead p pure
 
--- | A special `Proc` which captures it's stdin and presents it as a `ByteString`
+-- | A special `Proc` which captures its stdin and presents it as a `ByteString`
 -- to Haskell.
 --
 -- >>> printf "Hello" |> md5sum |> capture
@@ -508,7 +509,7 @@ apply = readWriteProc
 (<<<) = writeProc
 
 -- | Wait on a given `ProcessHandle`, and throw an exception of
--- type `Failure` if it's exit code is non-zero (ignoring SIGPIPE)
+-- type `Failure` if its exit code is non-zero (ignoring SIGPIPE)
 waitProc :: ByteString -> [ByteString] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
@@ -641,6 +642,11 @@ findBinsIn paths = do
 -- See also `loadExe` and `loadEnv`.
 exe :: (Unit a, ExecArgs a) => ByteString -> a
 exe s = toArgs [s]
+
+-- | Like @`exe`@ except that it takes a @String@ argument, and UTF8 encodes it.
+-- Convinient if you don't want to enable @OverloadedStrings@.
+exeStr :: (Unit a, ExecArgs a) => String -> a
+exeStr s = toArgs [fromString s]
 
 -- | Create a function for the executable named
 loadExe :: ExecReference -> String -> Q [Dec]
@@ -869,9 +875,9 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 xargs1 :: (NFData a, Monoid a) => ByteString -> (ByteString -> Proc a) -> Proc a
 xargs1 n f = readInputSplitP n (fmap mconcat . mapM f)
 
--- | Simple @`Proc`@ that reads it's input and can react to the output by
--- calling other @`Proc`@'s which can write something to it's stdout.
--- The internal @`Proc`@ is given @/dev/null@ as it's input.
+-- | Simple @`Proc`@ that reads its input and can react to the output by
+-- calling other @`Proc`@'s which can write something to its stdout.
+-- The internal @`Proc`@ is given @/dev/null@ as its input.
 readInputP :: (NFData a, PipeResult io) => (ByteString -> Proc a) -> io a
 readInputP f = nativeProc $ \i o e -> do
     s <- hGetContents i
