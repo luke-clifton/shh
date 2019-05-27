@@ -23,11 +23,10 @@ import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.ByteString.Lazy (ByteString, hGetContents, hPut)
+import Data.ByteString.Lazy (ByteString, hGetContents)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
 import Data.ByteString.Lazy.UTF8 (toString, fromString, lines)
-import Data.ByteString.Lazy.Char8 (hPutStrLn)
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import Data.List (dropWhileEnd, intercalate)
@@ -246,7 +245,7 @@ instance PipeResult Proc where
 -- Hello
 writeOutput :: (ExecArg a, PipeResult io) => a -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
-    mapM_ (BC8.hPutStr o) (asArg s)
+    mapM_ (BS.hPutStr o) (asArg s)
 
 -- | Simple @`Proc`@ that writes its argument to its @stderr@.
 -- See also @`writeOutput`@.
@@ -255,7 +254,7 @@ writeOutput s = nativeProc $ \_ o _ -> do
 -- Hello
 writeError :: (ExecArg a, PipeResult io) => a -> io ()
 writeError s = nativeProc $ \_ _ e -> do
-   mapM_ (BC8.hPutStr e) (asArg s)
+   mapM_ (BS.hPutStr e) (asArg s)
 
 -- | Simple @`Proc`@ that reads its input, and can react to it with an IO
 -- action. Does not write anything to its output. See also @`capture`@.
@@ -301,7 +300,7 @@ readInputLines = readInputSplit "\n"
 pureProc :: PipeResult io => (ByteString -> ByteString) -> io ()
 pureProc f = nativeProc $ \i o _ -> do
     s <- hGetContents i
-    BC8.hPutStr o (f s)
+    BS.hPutStr o (f s)
 
 -- | Captures the stdout of a process and prefixes all the lines with
 -- the given string.
@@ -310,7 +309,6 @@ pureProc f = nativeProc $ \i o _ -> do
 -- stdout: this is stdout
 -- stderr: this is stderr
 prefixLines :: PipeResult io => ByteString -> io ()
--- prefixLines s = pureProc $ BC8.intercalate "\n" . map (s <>) . lines
 prefixLines s = pureProc $ \inp -> toLazyByteString $
     mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
 
