@@ -273,6 +273,8 @@ readInput :: (NFData a, PipeResult io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
 
+-- | Join a list of @ByteString@s with newline characters, terminating it
+-- with a newline.
 unlines :: [ByteString] -> ByteString
 unlines = toLazyByteString . mconcat . map (\l -> lazyByteString l <> char7 '\n')
 
