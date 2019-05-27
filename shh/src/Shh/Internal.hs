@@ -244,17 +244,17 @@ instance PipeResult Proc where
 --
 -- >>> writeOutput "Hello"
 -- Hello
-writeOutput :: PipeResult io => ByteString -> io ()
+writeOutput :: (ExecArg a, PipeResult io) => a -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
-    BC8.hPutStr o s
+    mapM_ (BC8.hPutStr o) (asArg s)
 
 -- | Simple @`Proc`@ that writes a `ByteString` to it's @stderr@.
 -- See also @`writeOutput`@.
 -- >>> writeError "Hello" &> devNull
 -- Hello
-writeError :: PipeResult io => ByteString -> io ()
+writeError :: (ExecArg a, PipeResult io) => a -> io ()
 writeError s = nativeProc $ \_ _ e -> do
-   BC8.hPutStr e s
+   mapM_ (BC8.hPutStr e) (asArg s)
 
 -- | Simple @`Proc`@ that reads it's input, and can react to it with an IO
 -- action. Does not write anything to it's output. See also @`capture`@.
@@ -563,11 +563,12 @@ class ExecArg a where
     default asArg :: Show a => a -> [ByteString]
     asArg a = [fromString $ show a]
 
-    -- God, I hate that ByteString is [Char]...
+    -- God, I hate that String is [Char]...
     asArgFromList :: [a] -> [ByteString]
     default asArgFromList :: Show a => [a] -> [ByteString]
     asArgFromList = concatMap asArg
 
+-- | The [Char] instances encodes as UTF8
 instance ExecArg Char where
     asArg s = [fromString [s]]
     asArgFromList s = [fromString s]
