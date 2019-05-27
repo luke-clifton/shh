@@ -569,11 +569,12 @@ class ExecArg a where
     default asArgFromList :: Show a => [a] -> [ByteString]
     asArgFromList = concatMap asArg
 
--- | The [Char] instances encodes as UTF8
+-- | The @Char@ and @String@ instances encodes as UTF8
 instance ExecArg Char where
     asArg s = [fromString [s]]
     asArgFromList s = [fromString s]
 
+-- | The @[Char]@/@String@ instance encodes as UTF8
 instance ExecArg a => ExecArg [a] where
     asArg = asArgFromList
     asArgFromList = concatMap asArg
