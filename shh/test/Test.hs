@@ -78,6 +78,12 @@ properties = testGroup "Properties"
             a <- writeOutput s |> pureProc id |> capture
             b <- writeOutput s |> readInputP (\s -> writeOutput s) |> capture
             pure $ a === b
+    , testProperty "string round trip" $ \s -> ioProperty $ do
+        r <- writeOutput (s :: String) |> capture
+        pure $ s == toString r
+    , testProperty "bytestring round trip" $ \s -> ioProperty $ do
+        r <- writeOutput (s :: ByteString) |> capture
+        pure $ s == r
     ]
 
 withTmp :: (ByteString -> IO a) -> IO a
@@ -210,4 +216,7 @@ unitTests = testGroup "Unit tests"
     , testCase "subshells" $ do
       s <- readProc $ echo "ac" |> (cat >> echo "bc") |> tr "-d" "c"
       s @?= "a\nb\n"
+    , testCase "unicode" $ do
+        s <- writeOutput "üか" |> cat |> capture
+        toString s @?= "üか"
     ]

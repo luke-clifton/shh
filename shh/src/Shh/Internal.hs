@@ -173,7 +173,7 @@ instance PipeResult IO where
 -- | Create a pipe, and close both ends on exception. The first argument
 -- is the read end, the second is the write end.
 --
--- >>> withPipe $ \r w -> hPutStrLn w "test" >> hClose w >> hGetLine r
+-- >>> withPipe $ \r w -> hPutStr w "test" >> hClose w >> hGetLine r
 -- "test"
 withPipe :: (Handle -> Handle -> IO a) -> IO a
 withPipe k =
