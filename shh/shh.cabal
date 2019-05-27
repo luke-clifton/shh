@@ -46,6 +46,7 @@ executable shh
   build-depends:
     base >=4.9,
     temporary,
+    bytestring,
     deepseq,
     directory,
     shh,

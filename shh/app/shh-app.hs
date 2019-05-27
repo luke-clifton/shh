@@ -4,6 +4,7 @@ module Main where
 import Control.DeepSeq (force)
 import Control.Exception
 import Control.Monad
+import Data.ByteString.Lazy.Char8 (ByteString,pack)
 import Shh
 import System.IO
 import System.IO.Error
@@ -82,14 +83,14 @@ main = do
             setOwnerWritable True $
             emptyPermissions
         doIfMissing "init.ghci" $ do
-            catchFailure (exe wrapper "ghc-pkg" "latest" "shh") >>= \case
+            catchFailure (exe (pack wrapper) "ghc-pkg" "latest" "shh") >>= \case
                 Left _ -> do
                     putStrLn "Please make the shh and shh-extras packages available in the shh"
                     putStrLn "environment (install it globally or modify the wrapper, see docs)."
                     putStrLn "Aborting"
                     exitFailure
                 Right _ -> writeFile "init.ghci" defaultInitGhci
-            catchFailure (exe wrapper "ghc-pkg" "latest" "shh-extras") >>= \case
+            catchFailure (exe (pack wrapper) "ghc-pkg" "latest" "shh-extras") >>= \case
                 Left _ -> do
                     putStrLn "## WARNING ##########################################################"
                     putStrLn "# You do not have the shh-extras library installed, and so we are"
@@ -112,7 +113,7 @@ main = do
             putStrLn "Rebuilding Shell.hs..."
             writeFile "paths" cp
             -- Use absolute path of Shell.hs so that GHCi doesn't recompile.
-            exe wrapper "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
+            exe (pack wrapper) "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
 
     executeFile wrapper False ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"] Nothing
 
