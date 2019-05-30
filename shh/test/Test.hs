@@ -21,7 +21,7 @@ import Control.Concurrent.Async
 import System.IO
 
 load SearchPath
-    ["wc", "head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep"
+    [ "wc", "head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep"
     , "rm", "printf", "xargs", "find"
     ]
 

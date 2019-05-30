@@ -646,13 +646,8 @@ findBinsIn paths = do
 -- > exe "ls" "-l"
 --
 -- See also `loadExe` and `loadEnv`.
-exe :: (Unit a, ExecArgs a) => ByteString -> a
-exe s = toArgs [s]
-
--- | Like @`exe`@ except that it takes a @String@ argument, and UTF8 encodes it.
--- Convinient if you don't want to enable @OverloadedStrings@.
-exeStr :: (Unit a, ExecArgs a) => String -> a
-exeStr s = toArgs [fromString s]
+exe :: (Unit a, ExecArgs a, ExecArg str) => str -> a
+exe s = toArgs (asArg s)
 
 -- | Create a function for the executable named
 loadExe :: ExecReference -> String -> Q [Dec]
