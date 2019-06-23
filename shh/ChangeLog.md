@@ -1,5 +1,11 @@
 # Revision history for shh
 
+## unreleased
+
+* Switch to a ByteString interface, in the process fixing up a bunch of
+  unicode issues.
+* Encode String type arguments as utf8.
+
 ## 0.5.0.0 -- 2019-05-23
 
 * Change how identifiers are encoded to avoid clashes in all scenarios
