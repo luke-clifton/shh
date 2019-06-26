@@ -1,6 +1,11 @@
 # Revision history for shh
 
-## unreleased
+## 0.6.0.0 -- 2019-06-26
+
+This change doesn't remove any functions or majorly change any semantics,
+but it will break everything. We now use ByteString instead of String as
+the basis for interaction with the OS. This has the potential to improve
+performance, but most importantly, helps with correctness.
 
 * Switch to a ByteString interface, in the process fixing up a bunch of
   unicode issues.
