@@ -89,6 +89,12 @@ properties = testGroup "Properties"
 withTmp :: (ByteString -> IO a) -> IO a
 withTmp = bracket (readTrim mktemp) rm
 
+checkFailure :: Failure -> ByteString -> [ByteString] -> Int -> IO ()
+checkFailure f prog args code = do
+    failureProg f @?= prog
+    failureArgs f @?= args
+    failureCode f @?= code
+
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
     [ testCase "Read stdout" $ do
@@ -123,7 +129,7 @@ unitTests = testGroup "Unit tests"
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
         Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
-        x @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure x "false" ["dummy"] 1
     , testCase "Write to process" $ withTmp $ \t -> do
         writeProc (cat &> Truncate t) "Hello"
         r <- readProc (cat t)
@@ -139,19 +145,19 @@ unitTests = testGroup "Unit tests"
         r @?= "Hello\n"
     , testCase "Read failure" $ replicateM_ 30 $ do
         Left r <- catchFailure $ readProc $ false "dummy"
-        r @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain start" $ replicateM_ 30 $ do
         Left r <- catchFailure $ readProc $ false "dummy" |> echo "test" |> true
-        r @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain middle" $ replicateM_ 30 $ do
         Left r <- catchFailure $ readProc $ echo "test" |> false "dummy" |> true
-        r @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain end" $ replicateM_ 30 $ do
         Left r <- catchFailure $ readProc $ echo "test" |> true |> false "dummy"
-        r @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure r "false" ["dummy"] 1
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
         Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . BS.take 3
-        r @?= Shh.Failure "false" ["dummy"] 1
+        checkFailure r "false" ["dummy"] 1
     , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1'40'3''_"
     , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "_T''est"
     , testCase "pureProc closes input" $ do

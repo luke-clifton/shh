@@ -38,9 +38,7 @@ module Shh
     , xargs1
     -- | == Piping and Redirection
     , PipeResult(..)
-    , (|>)
     , (<|)
-    , (|!>)
     , Stream(..)
     , devNull
     -- | === Lazy/Streaming reads

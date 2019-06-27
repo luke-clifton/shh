@@ -108,7 +108,21 @@ instance Exception Failure
 -- | This class is used to allow most of the operators in Shh to be
 -- polymorphic in their return value. This makes using them in an `IO` context
 -- easier (we can avoid having to prepend everything with a `runProc`).
-class Functor f => PipeResult f where
+class PipeResult f where
+
+    -- | Like @`|>`@ except that it keeps both return results. Be aware
+    -- that the @fst@ element of this tuple may be hiding a @SIGPIPE@
+    -- exception that will explode on you once you look at it.
+    --
+    -- You probably want to use @`|>`@ unless you know you don't.
+    (*|>) :: Proc a -> Proc b -> f (a, b)
+    infixl 1 *|>
+
+    -- | Like @`|!>`@ except returns both values. See documentation for
+    -- @`*|>`@ for some dangers about using this.
+    (*|!>) :: Proc a -> Proc b -> f (a, b)
+    infixl 1 *|!>
+
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
     --
@@ -124,8 +138,20 @@ class Functor f => PipeResult f where
     --
     -- >>> echo "Hello" |> wc
     --       1       1       6
-    (*|>) :: Proc a -> Proc b -> f (a, b)
-    infixl 1 *|>
+    (|>) :: Proc a -> Proc b -> f b
+    default (|>) :: Monad f => Proc a -> Proc b -> f b
+    a |> b = do
+        v <- fmap snd (a *|> b)
+        pure $! v
+    infixl 1 |>
+
+    -- | Like @`*|>`@ except that it only returns the value from the left
+    -- side. Note the dangers discussed in the documentation for @`*|>`@.
+    (.|>) :: Proc a -> Proc b -> f a
+    default (.|>) :: Monad f => Proc a -> Proc b -> f a
+    a .|> b = do
+        v <- fmap fst (a *|> b)
+        pure $! v
 
     -- | Similar to `|!>` except that it connects stderr to stdin of the
     -- next process in the chain.
@@ -139,8 +165,20 @@ class Functor f => PipeResult f where
     -- >>> echo "Ignored" |!> wc "-c"
     -- Ignored
     -- 0
-    (*|!>) :: Proc a -> Proc b -> f (a, b)
-    infixl 1 *|!>
+    (|!>) :: Proc a -> Proc b -> f b
+    default (|!>) :: Monad f => Proc a -> Proc b -> f b
+    a |!> b = do
+        v <- fmap snd (a *|!> b)
+        pure $! v
+    infixl 1 |!>
+
+    -- | Like @`*|!>`@ except that it only returns the value from the left
+    -- side. Note the dangers discussed in the documentation for @`*|>`@.
+    (.|!>) :: Proc a -> Proc b -> f a
+    default (.|!>) :: Monad f => Proc a -> Proc b -> f a
+    a .|!> b = do
+        v <- fmap fst (a *|!> b)
+        pure $! v
 
     -- | Redirect stdout of this process to another location
     --
@@ -158,14 +196,6 @@ class Functor f => PipeResult f where
     -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
     -- @stdout@ and @stderr@ of the resulting @`Proc`@
     nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
-
-(|>) :: (Functor f, PipeResult f) => Proc b -> Proc a -> f a
-a |> b = fmap snd (a *|> b)
-infixl 1 |>
-
-(|!>) :: PipeResult f => Proc a -> Proc b -> f b
-a |!> b = fmap snd (a *|!> b)
-infixl 1 |!>
 -- | Flipped version of `|>` with lower precedence.
 --
 -- >>> captureTrim <| (echo "Hello" |> wc "-c")
@@ -553,7 +583,8 @@ instance ProcFailure IO where
 -- This can be used to prevent a process from interrupting a whole pipeline.
 --
 -- >>> false |> (sleep 2 >> echo 1)
--- *** Exception: Command `false` failed [exit 1]
+-- *** Exception: Command `false` failed [exit 1] at CallStack (from HasCallStack):
+-- ...
 --
 -- >>> (ignoreFailure  false) |> (sleep 2 >> echo 1)
 -- 1
