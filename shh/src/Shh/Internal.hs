@@ -17,12 +17,14 @@ module Shh.Internal where
 
 import Prelude hiding (lines, unlines)
 
+import GHC.Stack
 import Control.Concurrent.MVar
 import Control.Concurrent.Async
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
+import qualified Data.ByteString as ByteString
 import Data.ByteString.Lazy (ByteString, hGetContents)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
@@ -83,10 +85,11 @@ initInteractive = do
 -- The only exception to this is when a process is terminated
 -- by @SIGPIPE@ in a pipeline, in which case we ignore it.
 data Failure = Failure
-    { failureProg :: ByteString
-    , failureArgs :: [ByteString]
-    , failureCode :: Int
-    } deriving (Eq, Ord)
+    { failureProg  :: ByteString
+    , failureArgs  :: [ByteString]
+    , failureStack :: CallStack
+    , failureCode  :: Int
+    }
 
 instance Show Failure where
     show f = concat $
@@ -96,7 +99,8 @@ instance Show Failure where
         ++
         [ "` failed [exit "
         , show (failureCode f)
-        , "]"
+        , "] at "
+        , prettyCallStack (failureStack f)
         ]
 
 instance Exception Failure
@@ -104,7 +108,7 @@ instance Exception Failure
 -- | This class is used to allow most of the operators in Shh to be
 -- polymorphic in their return value. This makes using them in an `IO` context
 -- easier (we can avoid having to prepend everything with a `runProc`).
-class PipeResult f where
+class Functor f => PipeResult f where
     -- | Use this to send the output of on process into the input of another.
     -- This is just like a shells `|` operator.
     --
@@ -120,8 +124,8 @@ class PipeResult f where
     --
     -- >>> echo "Hello" |> wc
     --       1       1       6
-    (|>) :: Proc b -> Proc a -> f a
-    infixl 1 |>
+    (*|>) :: Proc a -> Proc b -> f (a, b)
+    infixl 1 *|>
 
     -- | Similar to `|!>` except that it connects stderr to stdin of the
     -- next process in the chain.
@@ -135,8 +139,8 @@ class PipeResult f where
     -- >>> echo "Ignored" |!> wc "-c"
     -- Ignored
     -- 0
-    (|!>) :: Proc b -> Proc a -> f a
-    infixl 1 |!>
+    (*|!>) :: Proc a -> Proc b -> f (a, b)
+    infixl 1 *|!>
 
     -- | Redirect stdout of this process to another location
     --
@@ -155,6 +159,13 @@ class PipeResult f where
     -- @stdout@ and @stderr@ of the resulting @`Proc`@
     nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
 
+(|>) :: (Functor f, PipeResult f) => Proc b -> Proc a -> f a
+a |> b = fmap snd (a *|> b)
+infixl 1 |>
+
+(|!>) :: PipeResult f => Proc a -> Proc b -> f b
+a |!> b = fmap snd (a *|!> b)
+infixl 1 |!>
 -- | Flipped version of `|>` with lower precedence.
 --
 -- >>> captureTrim <| (echo "Hello" |> wc "-c")
@@ -164,8 +175,8 @@ class PipeResult f where
 infixr 1 <|
 
 instance PipeResult IO where
-    a |> b = runProc $ a |> b
-    a |!> b = runProc $ a |!> b
+    a *|> b = runProc $ a *|> b
+    a *|!> b = runProc $ a *|!> b
     a &> s = runProc $ a &> s
     a &!> s = runProc $ a &!> s
     nativeProc f = runProc $ nativeProc f
@@ -183,21 +194,19 @@ withPipe k =
         (\(r,w) -> k r w)
 
 instance PipeResult Proc where
-    (Proc a) |> (Proc b) = Proc $ \i o e pl pw ->
+    (Proc a) *|> (Proc b) = Proc $ \i o e pl pw ->
         withPipe $ \r w -> do
             let
                 a' = a i w e (pure ()) (hClose w)
                 b' = b r o e (pure ()) (hClose r)
-            (_, br) <- (pl >> concurrently a' b') `finally` pw
-            pure br
+            (pl >> concurrently a' b') `finally` pw
 
-    (Proc a) |!> (Proc b) = Proc $ \i o e pl pw -> do
+    (Proc a) *|!> (Proc b) = Proc $ \i o e pl pw -> do
         withPipe $ \r w -> do
             let
                 a' = a i o w (pure ()) (hClose w)
                 b' = b r o e (pure ()) (hClose r)
-            (_, br) <- (pl >> concurrently a' b') `finally` pw
-            pure br
+            (pl >> concurrently a' b') `finally` pw
 
     p &> StdOut = p
     (Proc f) &> StdErr = Proc $ \i _ e pl pw -> f i e e pl pw
@@ -408,12 +417,12 @@ runProc' i o e (Proc f) = do
 -- | Create a `Proc` from a command and a list of arguments.
 -- The boolean represents whether we should delegate control-c
 -- or not. Most uses of @`mkProc'`@ in Shh do not delegate control-c.
-mkProc' :: Bool -> ByteString -> [ByteString] -> Proc ()
+mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
 mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
     let
         cmd' = BC8.unpack cmd
         args' = BC8.unpack <$> args
-    bracket
+    (bracket
         (createProcess_ cmd' (proc cmd' args')
             { std_in = UseHandle i
             , std_out = UseHandle o
@@ -425,11 +434,12 @@ mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
         (\(_,_,_,ph) -> terminateProcess ph)
         $ \(_,_,_,ph) -> do
             pl
-            (waitProc cmd args ph `onException` terminateProcess ph) `finally` pw
+            (waitProc cmd args ph `onException` terminateProcess ph)
+        ) `finally` pw
 
 -- | Create a `Proc` from a command and a list of arguments. Does not delegate
 -- control-c handling.
-mkProc :: ByteString -> [ByteString] -> Proc ()
+mkProc :: HasCallStack => ByteString -> [ByteString] -> Proc ()
 mkProc = mkProc' False
 
 -- | Read the stdout of a `Proc`. This captures stdout, so further piping will
@@ -515,11 +525,11 @@ apply = readWriteProc
 
 -- | Wait on a given `ProcessHandle`, and throw an exception of
 -- type `Failure` if its exit code is non-zero (ignoring SIGPIPE)
-waitProc :: ByteString -> [ByteString] -> ProcessHandle -> IO ()
+waitProc :: HasCallStack => ByteString -> [ByteString] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
         | fromIntegral c == negate sigPIPE -> pure ()
-        | otherwise -> throwIO $ Failure cmd arg c
+        | otherwise -> throwIO $ Failure cmd arg callStack c
     ExitSuccess -> pure ()
 
 -- | Trim leading and tailing whitespace.
@@ -587,13 +597,16 @@ instance ExecArg a => ExecArg [a] where
 instance ExecArg ByteString where
     asArg s = [s]
 
+instance ExecArg ByteString.ByteString where
+    asArg s = [BS.fromStrict s]
+
 instance ExecArg Int
 instance ExecArg Integer
 instance ExecArg Word
 
 -- | A class for building up a command
 class ExecArgs a where
-    toArgs :: [ByteString] -> a
+    toArgs :: HasCallStack => [ByteString] -> a
 
 instance ExecArgs (Proc ()) where
     toArgs (cmd:args) = mkProc cmd args
@@ -646,8 +659,8 @@ findBinsIn paths = do
 -- > exe "ls" "-l"
 --
 -- See also `loadExe` and `loadEnv`.
-exe :: (Unit a, ExecArgs a, ExecArg str) => str -> a
-exe s = toArgs (asArg s)
+exe :: (Unit a, ExecArgs a, ExecArg str, HasCallStack) => str -> a
+exe s = withFrozenCallStack $ toArgs (asArg s)
 
 -- | Create a function for the executable named
 loadExe :: ExecReference -> String -> Q [Dec]
@@ -665,10 +678,10 @@ rawExe fnName executable = do
     let
         name = mkName $ fnName
         impl = valD (varP name) (normalB [|
-            exe executable
+            withFrozenCallStack $ exe executable
             |]) []
         typn = mkName "a"
-        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn)] (VarT typn))
+        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn), ConT ''HasCallStack] (VarT typn))
     i <- impl
     return $ [typ,i]
 
