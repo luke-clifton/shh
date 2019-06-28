@@ -4,6 +4,7 @@
 module Shh
     ( initInteractive
     -- | == Constructing a `Proc`
+    , Cmd
     -- | === External Processes
     -- These allow for the construction of @`Proc`@s that call external
     -- processes. You will often use the TemplateHaskell functions below
@@ -85,6 +86,7 @@ module Shh
     , ExecArg(..)
     , ExecArgs()
     , Unit()
+    , getCmd
     -- | == Template Haskell helpers
     , encodeIdentifier
     , ExecReference(..)
