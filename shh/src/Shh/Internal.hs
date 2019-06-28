@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE KindSignatures #-}
@@ -650,10 +651,19 @@ instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
 instance ExecArgs (IO ()) where
     toArgs = runProc . toArgs
 
+instance ExecArgs [ByteString] where
+    toArgs = id
+
+type Cmd = forall a. (Unit a, ExecArgs a) => a
+
+getCmd :: Cmd -> [ByteString]
+getCmd = toArgs
+
 -- | Force a `()` result.
 class Unit a
 instance {-# OVERLAPPING #-} Unit b => Unit (a -> b)
 instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
+instance {-# OVERLAPPABLE #-} Unit [ByteString]
 
 -- | Get all executables on your `$PATH`.
 pathBins :: IO [FilePath]
