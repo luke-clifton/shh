@@ -654,7 +654,7 @@ instance ExecArgs (IO ()) where
 instance ExecArgs [ByteString] where
     toArgs = id
 
-type Cmd = forall a. (Unit a, ExecArgs a) => a
+type Cmd = HasCallStack => forall a. (Unit a, ExecArgs a) => a
 
 getCmd :: Cmd -> [ByteString]
 getCmd = toArgs
