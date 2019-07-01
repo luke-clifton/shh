@@ -109,94 +109,144 @@ instance Exception Failure
 -- | This class is used to allow most of the operators in Shh to be
 -- polymorphic in their return value. This makes using them in an `IO` context
 -- easier (we can avoid having to prepend everything with a `runProc`).
-class PipeResult f where
+class Shell f where
 
-    -- | Like @`|>`@ except that it keeps both return results. Be aware
-    -- that the @fst@ element of this tuple may be hiding a @SIGPIPE@
-    -- exception that will explode on you once you look at it.
-    --
-    -- You probably want to use @`|>`@ unless you know you don't.
-    (*|>) :: Proc a -> Proc b -> f (a, b)
-    infixl 1 *|>
+    runProc :: Proc a -> f a
 
-    -- | Like @`|!>`@ except returns both values. See documentation for
-    -- @`*|>`@ for some dangers about using this.
-    (*|!>) :: Proc a -> Proc b -> f (a, b)
-    infixl 1 *|!>
+-- | Like @`|>`@ except that it keeps both return results. Be aware
+-- that the @fst@ element of this tuple may be hiding a @SIGPIPE@
+-- exception that will explode on you once you look at it.
+--
+-- You probably want to use @`|>`@ unless you know you don't.
+(*|>) :: Shell f => Proc a -> Proc b -> f (a, b)
+(Proc a) *|> (Proc b) = runProc $ Proc $ \i o e pl pw ->
+    withPipe $ \r w -> do
+        let
+            a' = a i w e (pure ()) (hClose w)
+            b' = b r o e (pure ()) (hClose r)
+        (pl >> concurrently a' b') `finally` pw
+infixl 1 *|>
 
-    -- | Use this to send the output of on process into the input of another.
-    -- This is just like a shells `|` operator.
-    --
-    -- The result is polymorphic in its output, and can result in either
-    -- another `Proc a` or an `IO a` depending on the context in which it is
-    -- used.
-    --
-    -- If any intermediate process throws an exception, the whole pipeline
-    -- is canceled.
-    --
-    -- The result of the last process in the chain is the result returned
-    -- by the pipeline. 
-    --
-    -- >>> echo "Hello" |> wc
-    --       1       1       6
-    (|>) :: Proc a -> Proc b -> f b
-    default (|>) :: Monad f => Proc a -> Proc b -> f b
-    a |> b = do
-        v <- fmap snd (a *|> b)
-        pure $! v
-    infixl 1 |>
 
-    -- | Like @`*|>`@ except that it only returns the value from the left
-    -- side. Note the dangers discussed in the documentation for @`*|>`@.
-    (.|>) :: Proc a -> Proc b -> f a
-    default (.|>) :: Monad f => Proc a -> Proc b -> f a
-    a .|> b = do
-        v <- fmap fst (a *|> b)
-        pure $! v
+-- | Like @`|!>`@ except returns both values. See documentation for
+-- @`*|>`@ for some dangers about using this.
+(*|!>) :: Shell f => Proc a -> Proc b -> f (a, b)
+(Proc a) *|!> (Proc b) = runProc $ Proc $ \i o e pl pw -> do
+    withPipe $ \r w -> do
+        let
+            a' = a i o w (pure ()) (hClose w)
+            b' = b r o e (pure ()) (hClose r)
+        (pl >> concurrently a' b') `finally` pw
+infixl 1 *|!>
 
-    -- | Similar to `|!>` except that it connects stderr to stdin of the
-    -- next process in the chain.
-    --
-    -- NB: The next command to be `|>` on will recapture the stdout of
-    -- both preceding processes, because they are both going to the same
-    -- handle!
-    --                                            
-    -- See the `&>` and `&!>` operators for redirection.
-    --
-    -- >>> echo "Ignored" |!> wc "-c"
-    -- Ignored
-    -- 0
-    (|!>) :: Proc a -> Proc b -> f b
-    default (|!>) :: Monad f => Proc a -> Proc b -> f b
-    a |!> b = do
-        v <- fmap snd (a *|!> b)
-        pure $! v
-    infixl 1 |!>
 
-    -- | Like @`*|!>`@ except that it only returns the value from the left
-    -- side. Note the dangers discussed in the documentation for @`*|>`@.
-    (.|!>) :: Proc a -> Proc b -> f a
-    default (.|!>) :: Monad f => Proc a -> Proc b -> f a
-    a .|!> b = do
-        v <- fmap fst (a *|!> b)
-        pure $! v
+-- | Use this to send the output of on process into the input of another.
+-- This is just like a shells `|` operator.
+--
+-- The result is polymorphic in its output, and can result in either
+-- another `Proc a` or an `IO a` depending on the context in which it is
+-- used.
+--
+-- If any intermediate process throws an exception, the whole pipeline
+-- is canceled.
+--
+-- The result of the last process in the chain is the result returned
+-- by the pipeline. 
+--
+-- >>> echo "Hello" |> wc
+--       1       1       6
+(|>) :: Shell f => Proc a -> Proc b -> f b
+a |> b = runProc $ do
+    v <- fmap snd (a *|> b)
+    pure $! v
+infixl 1 |>
 
-    -- | Redirect stdout of this process to another location
-    --
-    -- >>> echo "Ignore me" &> Append "/dev/null"
-    (&>) :: Proc a -> Stream -> f a
-    infixl 9 &>
+-- | Like @`*|>`@ except that it only returns the value from the left
+-- side. Note the dangers discussed in the documentation for @`*|>`@.
+(.|>) :: Shell f => Proc a -> Proc b -> f a
+a .|> b = runProc $ do
+    v <- fmap fst (a *|> b)
+    pure $! v
 
-    -- | Redirect stderr of this process to another location
-    --
-    -- >>> echo "Shh" &!> StdOut
-    -- Shh
-    (&!>) :: Proc a -> Stream -> f a
-    infixl 9 &!>
+-- | Similar to `|!>` except that it connects stderr to stdin of the
+-- next process in the chain.
+--
+-- NB: The next command to be `|>` on will recapture the stdout of
+-- both preceding processes, because they are both going to the same
+-- handle!
+--                                            
+-- See the `&>` and `&!>` operators for redirection.
+--
+-- >>> echo "Ignored" |!> wc "-c"
+-- Ignored
+-- 0
+(|!>) :: Shell f => Proc a -> Proc b -> f b
+a |!> b = runProc $ do
+    v <- fmap snd (a *|!> b)
+    pure $! v
+infixl 1 |!>
 
-    -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
-    -- @stdout@ and @stderr@ of the resulting @`Proc`@
-    nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
+-- | Like @`*|!>`@ except that it only returns the value from the left
+-- side. Note the dangers discussed in the documentation for @`*|>`@.
+(.|!>) :: Shell f => Proc a -> Proc b -> f a
+a .|!> b = runProc $ do
+    v <- fmap fst (a *|!> b)
+    pure $! v
+
+-- | Redirect stdout of this process to another location
+--
+-- >>> echo "Ignore me" &> Append "/dev/null"
+(&>) :: Shell f => Proc a -> Stream -> f a
+p &> StdOut = runProc p
+(Proc f) &> StdErr = runProc $ Proc $ \i _ e pl pw -> f i e e pl pw
+(Proc f) &> (Truncate path) = runProc $ Proc $ \i _ e pl pw ->
+    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e pl pw
+(Proc f) &> (Append path) = runProc $ Proc $ \i _ e pl pw ->
+    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e pl pw
+infixl 9 &>
+
+-- | Redirect stderr of this process to another location
+--
+-- >>> echo "Shh" &!> StdOut
+-- Shh
+(&!>) :: Proc a -> Stream -> f a
+p &!> StdErr = p
+(Proc f) &!> StdOut = Proc $ \i o _ pl pw -> f i o o pl pw
+(Proc f) &!> (Truncate path) = Proc $ \i o _ pl pw ->
+    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h pl pw
+(Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
+    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h pl pw
+infixl 9 &!>
+
+-- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
+-- @stdout@ and @stderr@ of the resulting @`Proc`@
+nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
+
+nativeProc f = Proc $ \i o e pl pw -> handle handler $ do
+    pl
+    -- We duplicate these so that you can't accidentally close the
+    -- real ones.
+    withDuplicates i o e $ \i' o' e' -> do
+        (f i' o' e' >>= C.evaluate . force)
+            `finally` (hClose i')
+            `finally` (hClose o')
+            `finally` (hClose e')
+            `finally` pw
+
+    where
+        -- The resource vanished error only occurs when upstream pipe closes.
+        -- This can only happen with the `|>` combinator, which will discard
+        -- the result of this `Proc` anyway. If the return value is somehow
+        -- inspected, or maybe if the exception is somehow legitimate, we
+        -- simply package it up as an exploding return value. `runProc` will
+        -- make sure to evaluate all `Proc`'s to WHNF in order to uncover it.
+        -- This should never happen. *nervous*
+        handler :: IOError -> IO a
+        handler e
+            | ioeGetErrorType e == ResourceVanished = pure (throw e)
+            | otherwise = throwIO e
+
+
 -- | Flipped version of `|>` with lower precedence.
 --
 -- >>> captureTrim <| (echo "Hello" |> wc "-c")
@@ -204,13 +254,6 @@ class PipeResult f where
 (<|) :: PipeResult f => Proc a -> Proc b -> f a
 (<|) = flip (|>)
 infixr 1 <|
-
-instance PipeResult IO where
-    a *|> b = runProc $ a *|> b
-    a *|!> b = runProc $ a *|!> b
-    a &> s = runProc $ a &> s
-    a &!> s = runProc $ a &!> s
-    nativeProc f = runProc $ nativeProc f
 
 -- | Create a pipe, and close both ends on exception. The first argument
 -- is the read end, the second is the write end.
@@ -223,59 +266,6 @@ withPipe k =
         createPipe
         (\(r,w) -> hClose r `finally` hClose w)
         (\(r,w) -> k r w)
-
-instance PipeResult Proc where
-    (Proc a) *|> (Proc b) = Proc $ \i o e pl pw ->
-        withPipe $ \r w -> do
-            let
-                a' = a i w e (pure ()) (hClose w)
-                b' = b r o e (pure ()) (hClose r)
-            (pl >> concurrently a' b') `finally` pw
-
-    (Proc a) *|!> (Proc b) = Proc $ \i o e pl pw -> do
-        withPipe $ \r w -> do
-            let
-                a' = a i o w (pure ()) (hClose w)
-                b' = b r o e (pure ()) (hClose r)
-            (pl >> concurrently a' b') `finally` pw
-
-    p &> StdOut = p
-    (Proc f) &> StdErr = Proc $ \i _ e pl pw -> f i e e pl pw
-    (Proc f) &> (Truncate path) = Proc $ \i _ e pl pw ->
-        withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e pl pw
-    (Proc f) &> (Append path) = Proc $ \i _ e pl pw ->
-        withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e pl pw
-
-    p &!> StdErr = p
-    (Proc f) &!> StdOut = Proc $ \i o _ pl pw -> f i o o pl pw
-    (Proc f) &!> (Truncate path) = Proc $ \i o _ pl pw ->
-        withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h pl pw
-    (Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
-        withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h pl pw
-
-    nativeProc f = Proc $ \i o e pl pw -> handle handler $ do
-        pl
-        -- We duplicate these so that you can't accidentally close the
-        -- real ones.
-        withDuplicates i o e $ \i' o' e' -> do
-            (f i' o' e' >>= C.evaluate . force)
-                `finally` (hClose i')
-                `finally` (hClose o')
-                `finally` (hClose e')
-                `finally` pw
-
-        where
-            -- The resource vanished error only occurs when upstream pipe closes.
-            -- This can only happen with the `|>` combinator, which will discard
-            -- the result of this `Proc` anyway. If the return value is somehow
-            -- inspected, or maybe if the exception is somehow legitimate, we
-            -- simply package it up as an exploding return value. `runProc` will
-            -- make sure to evaluate all `Proc`'s to WHNF in order to uncover it.
-            -- This should never happen. *nervous*
-            handler :: IOError -> IO a
-            handler e
-                | ioeGetErrorType e == ResourceVanished = pure (throw e)
-                | otherwise = throwIO e
 
 -- | Simple @`Proc`@ that writes its argument to its @stdout@. This behaves
 -- very much like the standard @printf@ utility, except that there is no
