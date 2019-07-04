@@ -26,7 +26,7 @@ import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.ByteString as ByteString
-import Data.ByteString.Lazy (ByteString, hGetContents)
+import Data.ByteString.Lazy (ByteString, hGetContents, toStrict)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
 import Data.ByteString.Lazy.UTF8 (toString, fromString, lines)
@@ -627,6 +627,9 @@ instance (a ~ ()) => Command (IO a) where
 instance Command [ByteString] where
     toArgs = id
 
+instance Command [ByteString.ByteString] where
+    toArgs = map toStrict
+
 -- | This type represents a partially built command. Further arguments
 -- can be supplied to it, or it can be turned into a `Proc` or directly
 -- executed in a context which supports that (such as `IO`).
@@ -693,7 +696,7 @@ rawExe fnName executable = do
             withFrozenCallStack $ exe executable
             |]) []
         typn = mkName "a"
-        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Command) (VarT typn), ConT ''HasCallStack] (VarT typn))
+        typ = SigD name (ConT ''Cmd)
     i <- impl
     return $ [typ,i]
 
