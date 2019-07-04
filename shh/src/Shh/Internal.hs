@@ -61,6 +61,7 @@ import Text.Printf
 -- For doc-tests. Not sure I can use TH in doc tests.
 -- >>> :seti -XOverloadedStrings
 -- >>> import Data.Monoid
+-- >>> import Data.ByteString.Lazy.Char8 (lines)
 -- >>> let cat = exe "cat"
 -- >>> let echo = exe "echo"
 -- >>> let false = exe "false"
@@ -284,7 +285,7 @@ writeError s = nativeProc $ \_ _ e -> do
 -- @`readInput`@ uses lazy IO to read its stdin, and works with infinite
 -- inputs.
 --
--- >>> yes |> readInput (pure . unlines . take 3 . BC8.lines)
+-- >>> yes |> readInput (pure . unlines . take 3 . lines)
 -- "y\ny\ny\n"
 readInput :: (NFData a, Shell io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
