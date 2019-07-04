@@ -32,6 +32,7 @@ library
     mtl              >= 2.2.2 && < 2.3,
     process          >= 1.6.3 && < 1.7,
     split            >= 0.2.3 && < 0.3,
+    stringsearch     >= 0.3.6.6 && < 0.4,
     template-haskell >= 2.13.0 && < 2.15,
     containers       >= 0.5.11 && < 0.7,
     unix             >= 2.7.2 && < 2.8,

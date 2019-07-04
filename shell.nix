@@ -4,28 +4,28 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, async, base, coreutils, deepseq, directory
-      , filepath, hashable, mtl, perl, process, split, stdenv, tasty
-      , tasty-hunit, tasty-quickcheck, template-haskell, temporary, unix
-      , vim, hostname, Glob, containers, doctest, utf8-string
+  f = { mkDerivation, async, base, bytestring, containers, deepseq
+      , directory, doctest, filepath, mtl, process, stdenv, stringsearch
+      , tasty, tasty-hunit, tasty-quickcheck, template-haskell, temporary
+      , unix, utf8-string
       }:
       mkDerivation {
         pname = "shh";
-        version = "0.2.0.2";
+        version = "0.6.0.0";
         src = ./shh;
         isLibrary = true;
         isExecutable = true;
         libraryHaskellDepends = [
-          async base deepseq directory filepath mtl process split
-          template-haskell unix hostname temporary Glob containers
-	  utf8-string
+          async base bytestring containers deepseq directory filepath mtl
+          process stringsearch template-haskell unix utf8-string
         ];
         executableHaskellDepends = [
-          async base directory hashable split temporary
+          async base bytestring deepseq directory temporary unix
         ];
-        executableToolDepends = [ coreutils vim ];
-        testHaskellDepends = [ base tasty tasty-hunit tasty-quickcheck doctest];
-        testToolDepends = [ perl vim ];
+        testHaskellDepends = [
+          async base bytestring directory doctest tasty tasty-hunit
+          tasty-quickcheck utf8-string
+        ];
         description = "Simple shell scripting from Haskell";
         license = stdenv.lib.licenses.bsd3;
       };

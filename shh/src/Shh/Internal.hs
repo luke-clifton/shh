@@ -18,6 +18,7 @@ module Shh.Internal where
 
 import Prelude hiding (lines, unlines)
 
+import qualified Data.List.Split as Split
 import GHC.Stack
 import Control.Concurrent.MVar
 import Control.Concurrent.Async
@@ -26,14 +27,14 @@ import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy.Search as Search
 import Data.ByteString.Lazy (ByteString, hGetContents, toStrict)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
-import Data.ByteString.Lazy.UTF8 (toString, fromString, lines)
+import Data.ByteString.Lazy.UTF8 (fromString, toString)
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
-import Data.List (dropWhileEnd, intercalate)
-import Data.List.Split (endBy, splitOn)
+import Data.List (intercalate)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Typeable
@@ -283,7 +284,7 @@ writeError s = nativeProc $ \_ _ e -> do
 -- @`readInput`@ uses lazy IO to read its stdin, and works with infinite
 -- inputs.
 --
--- >>> yes |> readInput (pure . unlines . take 3 . lines)
+-- >>> yes |> readInput (pure . unlines . take 3 . BC8.lines)
 -- "y\ny\ny\n"
 readInput :: (NFData a, Shell io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
@@ -333,7 +334,7 @@ pureProc f = nativeProc $ \i o _ -> do
 -- stderr: this is stderr
 prefixLines :: Shell io => ByteString -> io ()
 prefixLines s = pureProc $ \inp -> toLazyByteString $
-    mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
+    mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (BC8.lines inp)
 
 -- | Provide the stdin of a `Proc` from a `ByteString`
 --
@@ -480,7 +481,7 @@ captureTrim = readInput (pure . trim)
 --
 -- NB: This is strict. If you want a streaming version, use `readInput`
 captureSplit :: Shell io => ByteString -> io [ByteString]
-captureSplit s = readInput (pure . fmap fromString . endBy (toString s) . toString)
+captureSplit s = readInput (pure . split s)
 
 -- | Same as @'captureSplit' "\0"@.
 captureSplit0 :: Shell io => io [ByteString]
@@ -506,11 +507,12 @@ withReadSplit0 = withRead' split0
 --
 -- NB: Please consider using @'withReadSplit0'@ where you can.
 withReadLines :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
-withReadLines = withRead' lines
+withReadLines = withRead' BC8.lines
 
--- | Like @'withRead'@ except it splits the string with @'words'@ first.
+-- | Like @'withRead'@ except it splits the string with @'words'@ first. It
+-- assumes a UTF8 encoded string as input.
 withReadWords :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
-withReadWords = withRead' (map fromString . words . toString)
+withReadWords = withRead' BC8.words
 
 -- | Read and write to a `Proc`. Same as
 -- @readProc proc <<< input@
@@ -542,9 +544,15 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
         | otherwise -> throwIO $ Failure cmd arg callStack c
     ExitSuccess -> pure ()
 
+
+dropWhileEnd :: (Char -> Bool) -> ByteString -> ByteString
+dropWhileEnd p b = case BC8.unsnoc b of
+    Just (i, l) -> if p l then dropWhileEnd p i else b
+    Nothing     -> b
+
 -- | Trim leading and tailing whitespace.
 trim :: ByteString -> ByteString
-trim = fromString . dropWhileEnd isSpace . dropWhile isSpace . toString
+trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 
 -- | Run a `Proc` action, catching any `Failure` exceptions
 -- and returning them.
@@ -648,7 +656,7 @@ pathBins = map takeFileName <$> pathBinsAbs
 -- the whole path. First one found wins.
 pathBinsAbs :: IO [FilePath]
 pathBinsAbs = do
-    pathsVar <- splitOn ":" <$> getEnv "PATH"
+    pathsVar <- Split.splitOn ":" <$> getEnv "PATH"
     paths <- filterM Dir.doesDirectoryExist pathsVar
     findBinsIn paths
 
@@ -815,7 +823,16 @@ loadAnnotatedEnv ref f = do
 -- >>> split "\n" "a\nb"
 -- ["a","b"]
 split :: ByteString -> ByteString -> [ByteString]
-split s str = fmap fromString $ endBy (toString s) (toString str)
+split s str =
+    let splits = Search.split (toStrict s) str
+    in dropLastNull splits
+
+    where
+        dropLastNull :: [ByteString] -> [ByteString]
+        dropLastNull []   = []
+        dropLastNull [""] = []
+        dropLastNull [a]  = [a]
+        dropLastNull (a:as) = a : dropLastNull as
 
 -- | Load executables from the given directories
 loadFromDirs :: [FilePath] -> Q [Dec]
