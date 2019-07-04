@@ -548,8 +548,8 @@ trim = fromString . dropWhileEnd isSpace . dropWhile isSpace . toString
 
 -- | Run a `Proc` action, catching any `Failure` exceptions
 -- and returning them.
-catchFailure :: Shell m => Proc a -> m (Either Failure a)
-catchFailure (Proc f) = runProc $ Proc $ \i o e pl pw -> do
+tryFailure :: Shell m => Proc a -> m (Either Failure a)
+tryFailure (Proc f) = buildProc $ \i o e pl pw -> do
     try $ f i o e pl pw
 
 
@@ -563,12 +563,12 @@ catchFailure (Proc f) = runProc $ Proc $ \i o e pl pw -> do
 -- >>> (ignoreFailure  false) |> (sleep 2 >> echo 1)
 -- 1
 ignoreFailure :: (Functor m, Shell m) => Proc a -> m ()
-ignoreFailure = void . catchFailure
+ignoreFailure = void . tryFailure
 
 -- | Run an `Proc` action returning the return code if an
 -- exception was thrown, and 0 if it wasn't.
-catchCode :: (Functor m, Shell m) => Proc a -> m Int
-catchCode = fmap getCode . catchFailure
+exitCode :: (Functor m, Shell m) => Proc a -> m Int
+exitCode = fmap getCode . tryFailure
     where
         getCode (Right _) = 0
         getCode (Left  f) = failureCode f
