@@ -110,34 +110,33 @@ instance Exception Failure
 -- polymorphic in their return value. This makes using them in an `IO` context
 -- easier (we can avoid having to prepend everything with a `runProc`).
 class Shell f where
-
     runProc :: Proc a -> f a
+
+buildProc :: Shell f => (Handle -> Handle -> Handle -> IO () -> IO () -> IO a) -> f a
+buildProc = runProc . Proc
 
 -- | Like @`|>`@ except that it keeps both return results. Be aware
 -- that the @fst@ element of this tuple may be hiding a @SIGPIPE@
 -- exception that will explode on you once you look at it.
 --
 -- You probably want to use @`|>`@ unless you know you don't.
-(*|>) :: Shell f => Proc a -> Proc b -> f (a, b)
-(Proc a) *|> (Proc b) = runProc $ Proc $ \i o e pl pw ->
+pipe :: Shell f => Proc a -> Proc b -> f (a, b)
+pipe (Proc a) (Proc b) = buildProc $ \i o e pl pw ->
     withPipe $ \r w -> do
         let
             a' = a i w e (pure ()) (hClose w)
             b' = b r o e (pure ()) (hClose r)
         (pl >> concurrently a' b') `finally` pw
-infixl 1 *|>
 
 
--- | Like @`|!>`@ except returns both values. See documentation for
--- @`*|>`@ for some dangers about using this.
-(*|!>) :: Shell f => Proc a -> Proc b -> f (a, b)
-(Proc a) *|!> (Proc b) = runProc $ Proc $ \i o e pl pw -> do
+-- | Like @`pipe`@, but plumbs stderr. See the warning in @`pipe`@.
+pipeErr :: Shell f => Proc a -> Proc b -> f (a, b)
+pipeErr (Proc a) (Proc b) = buildProc $ \i o e pl pw -> do
     withPipe $ \r w -> do
         let
             a' = a i o w (pure ()) (hClose w)
             b' = b r o e (pure ()) (hClose r)
         (pl >> concurrently a' b') `finally` pw
-infixl 1 *|!>
 
 
 -- | Use this to send the output of on process into the input of another.
@@ -157,16 +156,10 @@ infixl 1 *|!>
 --       1       1       6
 (|>) :: Shell f => Proc a -> Proc b -> f b
 a |> b = runProc $ do
-    v <- fmap snd (a *|> b)
+    v <- fmap snd (a `pipe` b)
     pure $! v
 infixl 1 |>
 
--- | Like @`*|>`@ except that it only returns the value from the left
--- side. Note the dangers discussed in the documentation for @`*|>`@.
-(.|>) :: Shell f => Proc a -> Proc b -> f a
-a .|> b = runProc $ do
-    v <- fmap fst (a *|> b)
-    pure $! v
 
 -- | Similar to `|!>` except that it connects stderr to stdin of the
 -- next process in the chain.
@@ -182,26 +175,20 @@ a .|> b = runProc $ do
 -- 0
 (|!>) :: Shell f => Proc a -> Proc b -> f b
 a |!> b = runProc $ do
-    v <- fmap snd (a *|!> b)
+    v <- fmap snd (a `pipeErr` b)
     pure $! v
 infixl 1 |!>
 
--- | Like @`*|!>`@ except that it only returns the value from the left
--- side. Note the dangers discussed in the documentation for @`*|>`@.
-(.|!>) :: Shell f => Proc a -> Proc b -> f a
-a .|!> b = runProc $ do
-    v <- fmap fst (a *|!> b)
-    pure $! v
-
+--
 -- | Redirect stdout of this process to another location
 --
 -- >>> echo "Ignore me" &> Append "/dev/null"
 (&>) :: Shell f => Proc a -> Stream -> f a
 p &> StdOut = runProc p
-(Proc f) &> StdErr = runProc $ Proc $ \i _ e pl pw -> f i e e pl pw
-(Proc f) &> (Truncate path) = runProc $ Proc $ \i _ e pl pw ->
+(Proc f) &> StdErr = buildProc $ \i _ e pl pw -> f i e e pl pw
+(Proc f) &> (Truncate path) = buildProc $ \i _ e pl pw ->
     withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e pl pw
-(Proc f) &> (Append path) = runProc $ Proc $ \i _ e pl pw ->
+(Proc f) &> (Append path) = buildProc $ \i _ e pl pw ->
     withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e pl pw
 infixl 9 &>
 
@@ -209,20 +196,19 @@ infixl 9 &>
 --
 -- >>> echo "Shh" &!> StdOut
 -- Shh
-(&!>) :: Proc a -> Stream -> f a
-p &!> StdErr = p
-(Proc f) &!> StdOut = Proc $ \i o _ pl pw -> f i o o pl pw
-(Proc f) &!> (Truncate path) = Proc $ \i o _ pl pw ->
+(&!>) :: Shell f => Proc a -> Stream -> f a
+p &!> StdErr = runProc $ p
+(Proc f) &!> StdOut = buildProc $ \i o _ pl pw -> f i o o pl pw
+(Proc f) &!> (Truncate path) = buildProc $ \i o _ pl pw ->
     withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h pl pw
-(Proc f) &!> (Append path) = Proc $ \i o _ pl pw ->
+(Proc f) &!> (Append path) = buildProc $ \i o _ pl pw ->
     withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h pl pw
 infixl 9 &!>
 
 -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
 -- @stdout@ and @stderr@ of the resulting @`Proc`@
-nativeProc :: NFData a => (Handle -> Handle -> Handle -> IO a) -> f a
-
-nativeProc f = Proc $ \i o e pl pw -> handle handler $ do
+nativeProc :: (Shell f, NFData a) => (Handle -> Handle -> Handle -> IO a) -> f a
+nativeProc f = runProc $ Proc $ \i o e pl pw -> handle handler $ do
     pl
     -- We duplicate these so that you can't accidentally close the
     -- real ones.
@@ -251,7 +237,7 @@ nativeProc f = Proc $ \i o e pl pw -> handle handler $ do
 --
 -- >>> captureTrim <| (echo "Hello" |> wc "-c")
 -- "6"
-(<|) :: PipeResult f => Proc a -> Proc b -> f a
+(<|) :: Shell f => Proc a -> Proc b -> f a
 (<|) = flip (|>)
 infixr 1 <|
 
@@ -278,7 +264,7 @@ withPipe k =
 --
 -- >>> writeOutput "Hello"
 -- Hello
-writeOutput :: (ExecArg a, PipeResult io) => a -> io ()
+writeOutput :: (ExecArg a, Shell io) => a -> io ()
 writeOutput s = nativeProc $ \_ o _ -> do
     mapM_ (BS.hPutStr o) (asArg s)
 
@@ -287,7 +273,7 @@ writeOutput s = nativeProc $ \_ o _ -> do
 --
 -- >>> writeError "Hello" &> devNull
 -- Hello
-writeError :: (ExecArg a, PipeResult io) => a -> io ()
+writeError :: (ExecArg a, Shell io) => a -> io ()
 writeError s = nativeProc $ \_ _ e -> do
    mapM_ (BS.hPutStr e) (asArg s)
 
@@ -299,7 +285,7 @@ writeError s = nativeProc $ \_ _ e -> do
 --
 -- >>> yes |> readInput (pure . unlines . take 3 . lines)
 -- "y\ny\ny\n"
-readInput :: (NFData a, PipeResult io) => (ByteString -> IO a) -> io a
+readInput :: (NFData a, Shell io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
     hGetContents i >>= f
 
@@ -312,21 +298,21 @@ unlines = toLazyByteString . mconcat . map (\l -> lazyByteString l <> char7 '\n'
 --
 -- >>> yes |> readInputSplit "\n" (pure . take 3)
 -- ["y","y","y"]
-readInputSplit :: (NFData a, PipeResult io) => ByteString -> ([ByteString] -> IO a) -> io a
+readInputSplit :: (NFData a, Shell io) => ByteString -> ([ByteString] -> IO a) -> io a
 readInputSplit s f = readInput (f . split s)
 
 -- | Like @`readInput`@, but @`split`@s the string on the 0 byte.
 --
 -- >>> writeOutput "1\0\&2\0" |> readInputSplit0 pure
 -- ["1","2"]
-readInputSplit0 :: (NFData a, PipeResult io) => ([ByteString] -> IO a) -> io a
+readInputSplit0 :: (NFData a, Shell io) => ([ByteString] -> IO a) -> io a
 readInputSplit0 = readInputSplit "\0"
 
 -- | Like @`readInput`@, but @`split`@s the string on new lines.
 --
 -- >>> writeOutput "a\nb\n" |> readInputLines pure
 -- ["a","b"]
-readInputLines :: (NFData a, PipeResult io) => ([ByteString] -> IO a) -> io a
+readInputLines :: (NFData a, Shell io) => ([ByteString] -> IO a) -> io a
 readInputLines = readInputSplit "\n"
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
@@ -334,7 +320,7 @@ readInputLines = readInputSplit "\n"
 --
 -- >>> yes |> pureProc (BS.take 4) |> capture
 -- "y\ny\n"
-pureProc :: PipeResult io => (ByteString -> ByteString) -> io ()
+pureProc :: Shell io => (ByteString -> ByteString) -> io ()
 pureProc f = nativeProc $ \i o _ -> do
     s <- hGetContents i
     BS.hPutStr o (f s)
@@ -345,14 +331,14 @@ pureProc f = nativeProc $ \i o _ -> do
 -- >>> some_command |> prefixLines "stdout: " |!> prefixLines "stderr: " &> StdErr
 -- stdout: this is stdout
 -- stderr: this is stderr
-prefixLines :: PipeResult io => ByteString -> io ()
+prefixLines :: Shell io => ByteString -> io ()
 prefixLines s = pureProc $ \inp -> toLazyByteString $
     mconcat $ map (\l -> lazyByteString s <> lazyByteString l <> char7 '\n') (lines inp)
 
 -- | Provide the stdin of a `Proc` from a `ByteString`
 --
 -- Same as @`writeOutput` s |> p@
-writeProc :: PipeResult io => Proc a -> ByteString -> io a
+writeProc :: Shell io => Proc a -> ByteString -> io a
 writeProc p s = writeOutput s |> p
 
 -- | Run a process and capture its output lazily. Once the continuation
@@ -362,7 +348,7 @@ writeProc p s = writeOutput s |> p
 -- terminate if you close the handle).
 --
 -- Same as @p |> readInput f@
-withRead :: (PipeResult f, NFData b) => Proc a -> (ByteString -> IO b) -> f b
+withRead :: (Shell f, NFData b) => Proc a -> (ByteString -> IO b) -> f b
 withRead p f = p |> readInput f
 
 -- | Type used to represent destinations for redirects. @`Truncate` file@
@@ -384,7 +370,7 @@ newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
     deriving Functor
 
 instance MonadIO Proc where
-    liftIO a = Proc $ \_ _ _ pl pw -> do
+    liftIO a = buildProc $ \_ _ _ pl pw -> do
         (pl >> a) `finally` pw
 
 -- | The `Semigroup` instance for `Proc` pipes the stdout of one process
@@ -396,10 +382,10 @@ instance Semigroup (Proc a) where
     (<>) = (|>)
 
 instance (a ~ ()) => Monoid (Proc a) where
-    mempty = Proc $ \_ _ _ pl pw -> pl `finally` pw
+    mempty = buildProc $ \_ _ _ pl pw -> pl `finally` pw
 
 instance Applicative Proc where
-    pure a = Proc $ \_ _ _ pw pl -> do
+    pure a = buildProc $ \_ _ _ pw pl -> do
         pw `finally` pl
         pure a
 
@@ -409,7 +395,7 @@ instance Applicative Proc where
         pure (f' a')
         
 instance Monad Proc where
-    (Proc a) >>= f = Proc $ \i o e pl pw -> do
+    (Proc a) >>= f = buildProc $ \i o e pl pw -> do
         ar <- a i o e pl (pure ())
         let
             Proc f' = f ar
@@ -418,8 +404,11 @@ instance Monad Proc where
 -- | Run's a `Proc` in `IO`. This is usually not required, as most
 -- commands in Shh are polymorphic in their return type, and work
 -- just fine in `IO` directly.
-runProc :: Proc a -> IO a
-runProc = runProc' stdin stdout stderr
+instance Shell IO where
+    runProc = runProc' stdin stdout stderr
+
+instance Shell Proc where
+    runProc = id
 
 -- | Run's a `Proc` in `IO`. Like `runProc`, but you get to choose the handles.
 -- This is UNSAFE to expose externally, because there are restrictions on what
@@ -468,7 +457,7 @@ mkProc = mkProc' False
 --
 -- This is strict, so the whole output is read into a `ByteString`. See `withRead`
 -- for a lazy version that can be used for streaming.
-readProc :: PipeResult io => Proc a -> io ByteString
+readProc :: Shell io => Proc a -> io ByteString
 readProc p = withRead p pure
 
 -- | A special `Proc` which captures its stdin and presents it as a `ByteString`
@@ -476,7 +465,7 @@ readProc p = withRead p pure
 --
 -- >>> printf "Hello" |> md5sum |> capture
 -- "8b1a9953c4611296a827abf8c47804d7  -\n"
-capture :: PipeResult io => io ByteString
+capture :: Shell io => io ByteString
 capture = readInput pure
 
 -- | Like @'capture'@, except that it @'trim'@s leading and trailing white
@@ -484,43 +473,43 @@ capture = readInput pure
 --
 -- >>> printf "Hello" |> md5sum |> captureTrim
 -- "8b1a9953c4611296a827abf8c47804d7  -"
-captureTrim :: PipeResult io => io ByteString
+captureTrim :: Shell io => io ByteString
 captureTrim = readInput (pure . trim)
 
 -- | Like @'capture'@, but splits the input using the provided separator.
 --
 -- NB: This is strict. If you want a streaming version, use `readInput`
-captureSplit :: PipeResult io => ByteString -> io [ByteString]
+captureSplit :: Shell io => ByteString -> io [ByteString]
 captureSplit s = readInput (pure . fmap fromString . endBy (toString s) . toString)
 
 -- | Same as @'captureSplit' "\0"@.
-captureSplit0 :: PipeResult io => io [ByteString]
+captureSplit0 :: Shell io => io [ByteString]
 captureSplit0 = captureSplit "\0"
 
 -- | Same as @'captureSplit' "\n"@.
-captureLines :: PipeResult io => io [ByteString]
+captureLines :: Shell io => io [ByteString]
 captureLines = captureSplit "\n"
 
 -- | Apply a transformation function to the string before the IO action.
-withRead' :: (NFData b, PipeResult io) => (ByteString -> a) -> Proc x -> (a -> IO b) -> io b
+withRead' :: (NFData b, Shell io) => (ByteString -> a) -> Proc x -> (a -> IO b) -> io b
 withRead' f p io = withRead p (io . f)
 
 -- | Like @'withRead'@ except it splits the string with the provided separator.
-withReadSplit :: (NFData b, PipeResult io) => ByteString -> Proc a -> ([ByteString] -> IO b) -> io b
+withReadSplit :: (NFData b, Shell io) => ByteString -> Proc a -> ([ByteString] -> IO b) -> io b
 withReadSplit = withRead' . split
 
 -- | Like @'withRead'@ except it splits the string with @'split0'@ first.
-withReadSplit0 :: (NFData b, PipeResult io) => Proc a -> ([ByteString] -> IO b) -> io b
+withReadSplit0 :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
 withReadSplit0 = withRead' split0
 
 -- | Like @'withRead'@ except it splits the string with @'lines'@ first.
 --
 -- NB: Please consider using @'withReadSplit0'@ where you can.
-withReadLines :: (NFData b, PipeResult io) => Proc a -> ([ByteString] -> IO b) -> io b
+withReadLines :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
 withReadLines = withRead' lines
 
 -- | Like @'withRead'@ except it splits the string with @'words'@ first.
-withReadWords :: (NFData b, PipeResult io) => Proc a -> ([ByteString] -> IO b) -> io b
+withReadWords :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
 withReadWords = withRead' (map fromString . words . toString)
 
 -- | Read and write to a `Proc`. Same as
@@ -536,12 +525,12 @@ apply :: MonadIO io => Proc a -> ByteString -> io ByteString
 apply = readWriteProc
 
 -- | Flipped, infix version of `writeProc`
-(>>>) :: PipeResult io => ByteString -> Proc a -> io a
+(>>>) :: Shell io => ByteString -> Proc a -> io a
 (>>>) = flip writeProc
 
 
 -- | Infix version of `writeProc`
-(<<<) :: PipeResult io => Proc a -> ByteString -> io a
+(<<<) :: Shell io => Proc a -> ByteString -> io a
 (<<<) = writeProc
 
 -- | Wait on a given `ProcessHandle`, and throw an exception of
@@ -557,18 +546,12 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
 trim :: ByteString -> ByteString
 trim = fromString . dropWhileEnd isSpace . dropWhile isSpace . toString
 
--- | Allow us to catch `Failure` exceptions in `IO` and `Proc`
-class ProcFailure m where
-    -- | Run a `Proc` action, catching an `Failure` exceptions
-    -- and returning them.
-    catchFailure :: Proc a -> m (Either Failure a)
+-- | Run a `Proc` action, catching any `Failure` exceptions
+-- and returning them.
+catchFailure :: Shell m => Proc a -> m (Either Failure a)
+catchFailure (Proc f) = runProc $ Proc $ \i o e pl pw -> do
+    try $ f i o e pl pw
 
-instance ProcFailure Proc where
-    catchFailure (Proc f) = Proc $ \i o e pl pw -> do
-        try $ f i o e pl pw
-
-instance ProcFailure IO where
-    catchFailure = runProc . catchFailure
 
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
 -- This can be used to prevent a process from interrupting a whole pipeline.
@@ -579,19 +562,19 @@ instance ProcFailure IO where
 --
 -- >>> (ignoreFailure  false) |> (sleep 2 >> echo 1)
 -- 1
-ignoreFailure :: (Functor m, ProcFailure m) => Proc a -> m ()
+ignoreFailure :: (Functor m, Shell m) => Proc a -> m ()
 ignoreFailure = void . catchFailure
 
 -- | Run an `Proc` action returning the return code if an
 -- exception was thrown, and 0 if it wasn't.
-catchCode :: (Functor m, ProcFailure m) => Proc a -> m Int
+catchCode :: (Functor m, Shell m) => Proc a -> m Int
 catchCode = fmap getCode . catchFailure
     where
         getCode (Right _) = 0
         getCode (Left  f) = failureCode f
 
 -- | Like `readProc`, but trim leading and tailing whitespace.
-readTrim :: (Functor io, PipeResult io) => Proc a -> io ByteString
+readTrim :: (Functor io, Shell io) => Proc a -> io ByteString
 readTrim = fmap trim . readProc
 
 -- | A class for things that can be converted to arguments on the command
@@ -626,34 +609,32 @@ instance ExecArg Int
 instance ExecArg Integer
 instance ExecArg Word
 
--- | A class for building up a command
-class ExecArgs a where
+-- | A class for building up a command.
+class Command a where
     toArgs :: HasCallStack => [ByteString] -> a
 
-instance ExecArgs (Proc ()) where
+instance (a ~ ()) => Command (Proc a) where
     toArgs (cmd:args) = mkProc cmd args
     toArgs _ = error "The impossible happened. How did you construct this?"
 
-instance (ExecArg b, ExecArgs a) => ExecArgs (b -> a) where
+instance (ExecArg b, Command a) => Command (b -> a) where
     toArgs f i = toArgs $ f ++ asArg i
 
 -- | Commands can be executed directly in IO
-instance ExecArgs (IO ()) where
+instance (a ~ ()) => Command (IO a) where
     toArgs = runProc . toArgs
 
-instance ExecArgs [ByteString] where
+instance Command [ByteString] where
     toArgs = id
 
-type Cmd = HasCallStack => forall a. (Unit a, ExecArgs a) => a
+-- | This type represents a partially built command. Further arguments
+-- can be supplied to it, or it can be turned into a `Proc` or directly
+-- executed in a context which supports that (such as `IO`).
+type Cmd = HasCallStack => forall a. (Command a) => a
 
-getCmd :: Cmd -> [ByteString]
-getCmd = toArgs
-
--- | Force a `()` result.
-class Unit a
-instance {-# OVERLAPPING #-} Unit b => Unit (a -> b)
-instance {-# OVERLAPPABLE #-} a ~ () => Unit (m a)
-instance {-# OVERLAPPABLE #-} Unit [ByteString]
+-- | This function turns a `Cmd` into a list of @`ByteString`@s.
+displayCommand :: Cmd -> [ByteString]
+displayCommand = toArgs
 
 -- | Get all executables on your `$PATH`.
 pathBins :: IO [FilePath]
@@ -690,7 +671,7 @@ findBinsIn paths = do
 -- > exe "ls" "-l"
 --
 -- See also `loadExe` and `loadEnv`.
-exe :: (Unit a, ExecArgs a, ExecArg str, HasCallStack) => str -> a
+exe :: (Command a, ExecArg str, HasCallStack) => str -> a
 exe s = withFrozenCallStack $ toArgs (asArg s)
 
 -- | Create a function for the executable named
@@ -712,7 +693,7 @@ rawExe fnName executable = do
             withFrozenCallStack $ exe executable
             |]) []
         typn = mkName "a"
-        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Unit) (VarT typn), AppT (ConT ''ExecArgs) (VarT typn), ConT ''HasCallStack] (VarT typn))
+        typ = SigD name (ForallT [PlainTV typn] [AppT (ConT ''Command) (VarT typn), ConT ''HasCallStack] (VarT typn))
     i <- impl
     return $ [typ,i]
 
@@ -923,22 +904,22 @@ xargs1 n f = readInputSplitP n (fmap mconcat . mapM f)
 -- | Simple @`Proc`@ that reads its input and can react to the output by
 -- calling other @`Proc`@'s which can write something to its stdout.
 -- The internal @`Proc`@ is given @/dev/null@ as its input.
-readInputP :: (NFData a, PipeResult io) => (ByteString -> Proc a) -> io a
+readInputP :: (NFData a, Shell io) => (ByteString -> Proc a) -> io a
 readInputP f = nativeProc $ \i o e -> do
     s <- hGetContents i
     withNullInput $ \i' ->
         liftIO $ runProc' i' o e (f s)
 
 -- | Like @`readInputP`@, but splits the input.
-readInputSplitP :: (NFData a, PipeResult io) => ByteString -> ([ByteString] -> Proc a) -> io a
+readInputSplitP :: (NFData a, Shell io) => ByteString -> ([ByteString] -> Proc a) -> io a
 readInputSplitP s f = readInputP (f . split s)
 
 -- | Like @`readInputP`@, but splits the input on 0 bytes.
-readInputSplit0P :: (NFData a, PipeResult io) => ([ByteString] -> Proc a) -> io a
+readInputSplit0P :: (NFData a, Shell io) => ([ByteString] -> Proc a) -> io a
 readInputSplit0P = readInputSplitP "\0"
 
 -- | Like @`readInputP`@, but splits the input on new lines.
-readInputLinesP :: (NFData a, PipeResult io) => ([ByteString] -> Proc a) -> io a
+readInputLinesP :: (NFData a, Shell io) => ([ByteString] -> Proc a) -> io a
 readInputLinesP = readInputSplitP "\n"
 
 -- | Create a null file handle.

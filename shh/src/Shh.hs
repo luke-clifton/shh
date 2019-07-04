@@ -3,6 +3,8 @@
 -- | Shh provides a shell-like environment for Haskell.
 module Shh
     ( initInteractive
+    -- | == Running a `Proc`
+    , Shell(..)
     -- | == Constructing a `Proc`
     , Cmd
     -- | === External Processes
@@ -12,7 +14,6 @@ module Shh
     , exe
     , mkProc
     , mkProc'
-    , runProc
     , Proc()
     -- | === "Native" Processes
     -- You can also create native Haskell @`Proc`@s which behave the same
@@ -38,7 +39,10 @@ module Shh
     , readInputLinesP
     , xargs1
     -- | == Piping and Redirection
-    , PipeResult(..)
+    , (|>)
+    , (|!>)
+    , (&>)
+    , (&!>)
     , (<|)
     , Stream(..)
     , devNull
@@ -84,9 +88,8 @@ module Shh
     , catchCode
     -- | == Constructing Arguments
     , ExecArg(..)
-    , ExecArgs()
-    , Unit()
-    , getCmd
+    , Command()
+    , displayCommand
     -- | == Template Haskell helpers
     , encodeIdentifier
     , ExecReference(..)
