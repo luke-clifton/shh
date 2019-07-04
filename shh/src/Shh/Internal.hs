@@ -814,8 +814,11 @@ loadAnnotatedEnv ref f = do
         rawExe (f $ takeFileName bin) bin
     pure (concat i)
 
--- | Split a string separated by the provided separator. Trailing separators
--- are ignored, and do not produce an empty string. Compatible with the
+
+-- TODO: Should I call it endBy instead, and also provide a real split?
+
+-- | Split a string separated by the provided separator. A trailing separator
+-- is ignored, and does not produce an empty string. Compatible with the
 -- output of most CLI programs, such as @find -print0@.
 --
 -- >>> split "\n" "a\nb\n"
@@ -823,6 +826,9 @@ loadAnnotatedEnv ref f = do
 --
 -- >>> split "\n" "a\nb"
 -- ["a","b"]
+--
+-- >>> split "\n" "a\nb\n\n"
+-- ["a","b",""]
 split :: ByteString -> ByteString -> [ByteString]
 split s str =
     let splits = Search.split (toStrict s) str
