@@ -695,7 +695,6 @@ rawExe fnName executable = do
         impl = valD (varP name) (normalB [|
             withFrozenCallStack $ exe executable
             |]) []
-        typn = mkName "a"
         typ = SigD name (ConT ''Cmd)
     i <- impl
     return $ [typ,i]
