@@ -128,7 +128,7 @@ unitTests = testGroup "Unit tests"
         l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
-        Left x <- catchFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
+        Left x <- tryFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
         checkFailure x "false" ["dummy"] 1
     , testCase "Write to process" $ withTmp $ \t -> do
         writeProc (cat &> Truncate t) "Hello"
@@ -144,19 +144,19 @@ unitTests = testGroup "Unit tests"
         r <- readProc $ ignoreFailure false |> echo "Hello"
         r @?= "Hello\n"
     , testCase "Read failure" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ readProc $ false "dummy"
+        Left r <- tryFailure $ readProc $ false "dummy"
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain start" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ readProc $ false "dummy" |> echo "test" |> true
+        Left r <- tryFailure $ readProc $ false "dummy" |> echo "test" |> true
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain middle" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ readProc $ echo "test" |> false "dummy" |> true
+        Left r <- tryFailure $ readProc $ echo "test" |> false "dummy" |> true
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain end" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ readProc $ echo "test" |> true |> false "dummy"
+        Left r <- tryFailure $ readProc $ echo "test" |> true |> false "dummy"
         checkFailure r "false" ["dummy"] 1
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
-        Left r <- catchFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . BS.take 3
+        Left r <- tryFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . BS.take 3
         checkFailure r "false" ["dummy"] 1
     , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1'40'3''_"
     , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "_T''est"

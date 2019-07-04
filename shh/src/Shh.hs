@@ -84,8 +84,8 @@ module Shh
     -- to how a shell normally works (even with @-o pipefail@!).
     , Failure(..)
     , ignoreFailure
-    , catchFailure
-    , catchCode
+    , tryFailure
+    , exitCode
     -- | == Constructing Arguments
     , ExecArg(..)
     , Command()

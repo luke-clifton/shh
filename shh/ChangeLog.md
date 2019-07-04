@@ -1,5 +1,18 @@
 # Revision history for shh
 
+## 0.7.0.0
+
+This is a fairly major refactor which consolidates a bunch of type classes
+and simplifies a few things.
+
+* ExecArgs, Unit, PipeResult, PipeFailure are all gone and replaced
+  with Command and Shell type classes.
+* Renamed various functions.
+  * catchFailure -> tryFailure
+  * catchCode    -> exitCode
+* Remove some unnecessary utf8 decoding.
+
+
 ## 0.6.0.0 -- 2019-06-26
 
 This change doesn't remove any functions or majorly change any semantics,
