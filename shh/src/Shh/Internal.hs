@@ -114,6 +114,7 @@ instance Exception Failure
 class Shell f where
     runProc :: Proc a -> f a
 
+-- | Helper function that creates and potentially executes a @`Proc`@
 buildProc :: Shell f => (Handle -> Handle -> Handle -> IO () -> IO () -> IO a) -> f a
 buildProc = runProc . Proc
 
@@ -403,9 +404,6 @@ instance Monad Proc where
             Proc f' = f ar
         f' i o e (pure ()) pw
 
--- | Run's a `Proc` in `IO`. This is usually not required, as most
--- commands in Shh are polymorphic in their return type, and work
--- just fine in `IO` directly.
 instance Shell IO where
     runProc = runProc' stdin stdout stderr
 
@@ -467,6 +465,9 @@ readProc p = withRead p pure
 --
 -- >>> printf "Hello" |> md5sum |> capture
 -- "8b1a9953c4611296a827abf8c47804d7  -\n"
+--
+-- This is just @`readInput` pure@. Note that it is not lazy, and will read
+-- the entire @ByteString@ into memory.
 capture :: Shell io => io ByteString
 capture = readInput pure
 
@@ -546,12 +547,20 @@ waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitSuccess -> pure ()
 
 
+-- | Drop trailing characters from a @ByteString@ while the given predicate
+-- matches.
+--
+-- >>> dropWhileEnd isSpace "a line \n"
+-- "a line"
 dropWhileEnd :: (Char -> Bool) -> ByteString -> ByteString
 dropWhileEnd p b = case BC8.unsnoc b of
     Just (i, l) -> if p l then dropWhileEnd p i else b
     Nothing     -> b
 
 -- | Trim leading and tailing whitespace.
+--
+-- >>> trim " a string \n"
+-- "a string"
 trim :: ByteString -> ByteString
 trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 
@@ -565,17 +574,20 @@ tryFailure (Proc f) = buildProc $ \i o e pl pw -> do
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
 -- This can be used to prevent a process from interrupting a whole pipeline.
 --
--- >>> false |> (sleep 2 >> echo 1)
+-- >>> false |> (sleep "0.1" >> echo 1)
 -- *** Exception: Command `false` failed [exit 1] at CallStack (from HasCallStack):
 -- ...
 --
--- >>> (ignoreFailure  false) |> (sleep 2 >> echo 1)
+-- >>> (ignoreFailure false) |> (sleep "0.1" >> echo 1)
 -- 1
 ignoreFailure :: (Functor m, Shell m) => Proc a -> m ()
 ignoreFailure = void . tryFailure
 
--- | Run an `Proc` action returning the return code if an
--- exception was thrown, and 0 if it wasn't.
+-- | Run a `Proc` action returning the exit code of the process instead of
+-- throwing an exception.
+--
+-- >>> exitCode false
+-- 1
 exitCode :: (Functor m, Shell m) => Proc a -> m Int
 exitCode = fmap getCode . tryFailure
     where
