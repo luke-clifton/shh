@@ -5,9 +5,9 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, async, base, bytestring, containers, deepseq
-      , directory, doctest, filepath, mtl, process, stdenv, stringsearch
-      , tasty, tasty-hunit, tasty-quickcheck, template-haskell, temporary
-      , unix, utf8-string
+      , directory, doctest, filepath, mtl, process, split, stdenv
+      , stringsearch, tasty, tasty-hunit, tasty-quickcheck
+      , template-haskell, temporary, unix, utf8-string
       }:
       mkDerivation {
         pname = "shh";
@@ -17,7 +17,7 @@ let
         isExecutable = true;
         libraryHaskellDepends = [
           async base bytestring containers deepseq directory filepath mtl
-          process stringsearch template-haskell unix utf8-string
+          process split stringsearch template-haskell unix utf8-string
         ];
         executableHaskellDepends = [
           async base bytestring deepseq directory temporary unix
