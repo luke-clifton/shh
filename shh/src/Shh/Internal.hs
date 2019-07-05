@@ -297,26 +297,26 @@ readInput f = nativeProc $ \i _ _ -> do
 unlines :: [ByteString] -> ByteString
 unlines = toLazyByteString . mconcat . map (\l -> lazyByteString l <> char7 '\n')
 
--- | Like @`readInput`@, but @`split`@s the string.
+-- | Like @`readInput`@, but @`endBy`@s the string.
 --
--- >>> yes |> readInputSplit "\n" (pure . take 3)
+-- >>> yes |> readInputEndBy "\n" (pure . take 3)
 -- ["y","y","y"]
-readInputSplit :: (NFData a, Shell io) => ByteString -> ([ByteString] -> IO a) -> io a
-readInputSplit s f = readInput (f . split s)
+readInputEndBy :: (NFData a, Shell io) => ByteString -> ([ByteString] -> IO a) -> io a
+readInputEndBy s f = readInput (f . endBy s)
 
--- | Like @`readInput`@, but @`split`@s the string on the 0 byte.
+-- | Like @`readInput`@, but @`endBy`@s the string on the 0 byte.
 --
--- >>> writeOutput "1\0\&2\0" |> readInputSplit0 pure
+-- >>> writeOutput "1\0\&2\0" |> readInputEndBy0 pure
 -- ["1","2"]
-readInputSplit0 :: (NFData a, Shell io) => ([ByteString] -> IO a) -> io a
-readInputSplit0 = readInputSplit "\0"
+readInputEndBy0 :: (NFData a, Shell io) => ([ByteString] -> IO a) -> io a
+readInputEndBy0 = readInputEndBy "\0"
 
--- | Like @`readInput`@, but @`split`@s the string on new lines.
+-- | Like @`readInput`@, but @`endBy`@s the string on new lines.
 --
 -- >>> writeOutput "a\nb\n" |> readInputLines pure
 -- ["a","b"]
 readInputLines :: (NFData a, Shell io) => ([ByteString] -> IO a) -> io a
-readInputLines = readInputSplit "\n"
+readInputLines = readInputEndBy "\n"
 
 -- | Creates a pure @`Proc`@ that simple transforms the @stdin@ and writes
 -- it to @stdout@. The input can be infinite.
@@ -452,14 +452,6 @@ mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
 mkProc :: HasCallStack => ByteString -> [ByteString] -> Proc ()
 mkProc = mkProc' False
 
--- | Read the stdout of a `Proc`. This captures stdout, so further piping will
--- not see anything on the input.
---
--- This is strict, so the whole output is read into a `ByteString`. See `withRead`
--- for a lazy version that can be used for streaming.
-readProc :: Shell io => Proc a -> io ByteString
-readProc p = withRead p pure
-
 -- | A special `Proc` which captures its stdin and presents it as a `ByteString`
 -- to Haskell.
 --
@@ -482,51 +474,30 @@ captureTrim = readInput (pure . trim)
 -- | Like @'capture'@, but splits the input using the provided separator.
 --
 -- NB: This is strict. If you want a streaming version, use `readInput`
-captureSplit :: Shell io => ByteString -> io [ByteString]
-captureSplit s = readInput (pure . split s)
+captureEndBy :: Shell io => ByteString -> io [ByteString]
+captureEndBy s = readInput (pure . endBy s)
 
--- | Same as @'captureSplit' "\0"@.
-captureSplit0 :: Shell io => io [ByteString]
-captureSplit0 = captureSplit "\0"
+-- | Same as @'captureEndBy' "\0"@.
+captureEndBy0 :: Shell io => io [ByteString]
+captureEndBy0 = captureEndBy "\0"
 
 -- | Same as @'captureSplit' "\n"@.
 captureLines :: Shell io => io [ByteString]
-captureLines = captureSplit "\n"
+captureLines = captureEndBy "\n"
 
--- | Apply a transformation function to the string before the IO action.
-withRead' :: (NFData b, Shell io) => (ByteString -> a) -> Proc x -> (a -> IO b) -> io b
-withRead' f p io = withRead p (io . f)
+captureWords :: Shell io => io [ByteString]
+captureWords = readInput (pure . BC8.words)
 
--- | Like @'withRead'@ except it splits the string with the provided separator.
-withReadSplit :: (NFData b, Shell io) => ByteString -> Proc a -> ([ByteString] -> IO b) -> io b
-withReadSplit = withRead' . split
+captureRead :: (Shell io, Read a, NFData a) => io a
+captureRead = readInput (pure . read . toString)
 
--- | Like @'withRead'@ except it splits the string with @'split0'@ first.
-withReadSplit0 :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
-withReadSplit0 = withRead' split0
-
--- | Like @'withRead'@ except it splits the string with @'lines'@ first.
---
--- NB: Please consider using @'withReadSplit0'@ where you can.
-withReadLines :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
-withReadLines = withRead' BC8.lines
-
--- | Like @'withRead'@ except it splits the string with @'words'@ first. It
--- assumes a UTF8 encoded string as input.
-withReadWords :: (NFData b, Shell io) => Proc a -> ([ByteString] -> IO b) -> io b
-withReadWords = withRead' BC8.words
-
--- | Read and write to a `Proc`. Same as
--- @readProc proc <<< input@
-readWriteProc :: MonadIO io => Proc a -> ByteString -> io ByteString
-readWriteProc p input = liftIO $ readProc p <<< input
-
--- | Some as `readWriteProc`. Apply a `Proc` to a `ByteString`.
+-- | Apply a `Proc` to a `ByteString`. That is, feed the bytestring to
+-- the @stdin@ of the process and read the @stdout@.
 --
 -- >> apply md5sum "Hello"
 -- "8b1a9953c4611296a827abf8c47804d7  -\n"
-apply :: MonadIO io => Proc a -> ByteString -> io ByteString
-apply = readWriteProc
+apply :: (ExecArg a, Shell io) => Proc v -> a -> io ByteString
+apply p b = writeOutput b |> p |> capture
 
 -- | Flipped, infix version of `writeProc`
 (>>>) :: Shell io => ByteString -> Proc a -> io a
@@ -594,10 +565,6 @@ exitCode = fmap getCode . tryFailure
         getCode (Right _) = 0
         getCode (Left  f) = failureCode f
 
--- | Like `readProc`, but trim leading and tailing whitespace.
-readTrim :: (Functor io, Shell io) => Proc a -> io ByteString
-readTrim = fmap trim . readProc
-
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.
 class ExecArg a where
@@ -657,6 +624,9 @@ instance Command [ByteString.ByteString] where
 type Cmd = HasCallStack => forall a. (Command a) => a
 
 -- | This function turns a `Cmd` into a list of @`ByteString`@s.
+--
+-- >>> displayCommand $ echo "Hello, world!"
+-- ["echo","Hello, world!"]
 displayCommand :: Cmd -> [ByteString]
 displayCommand = toArgs
 
@@ -695,6 +665,13 @@ findBinsIn paths = do
 -- > exe "ls" "-l"
 --
 -- See also `loadExe` and `loadEnv`.
+--
+-- NB: It is recommended that you use the template haskell functions to load
+-- executables from your path. If you do it manually, it is recommended to
+-- use @withFrozenCallStack@ from @GHC.Stack@
+--
+-- > echo :: Cmd
+-- > echo = withFrozenCallStack (exe "echo")
 exe :: (Command a, ExecArg str, HasCallStack) => str -> a
 exe s = withFrozenCallStack $ toArgs (asArg s)
 
@@ -827,22 +804,20 @@ loadAnnotatedEnv ref f = do
     pure (concat i)
 
 
--- TODO: Should I call it endBy instead, and also provide a real split?
-
 -- | Split a string separated by the provided separator. A trailing separator
 -- is ignored, and does not produce an empty string. Compatible with the
 -- output of most CLI programs, such as @find -print0@.
 --
--- >>> split "\n" "a\nb\n"
+-- >>> endBy "\n" "a\nb\n"
 -- ["a","b"]
 --
--- >>> split "\n" "a\nb"
+-- >>> endBy "\n" "a\nb"
 -- ["a","b"]
 --
--- >>> split "\n" "a\nb\n\n"
+-- >>> endBy "\n" "a\nb\n\n"
 -- ["a","b",""]
-split :: ByteString -> ByteString -> [ByteString]
-split s str =
+endBy :: ByteString -> ByteString -> [ByteString]
+endBy s str =
     let splits = Search.split (toStrict s) str
     in dropLastNull splits
 
@@ -874,29 +849,8 @@ loadAnnotatedFromDirs ps f = do
 
 -- | Function that splits '\0' separated list of strings. Useful in conjunction
 -- with @find . "-print0"@.
-split0 :: ByteString -> [ByteString]
-split0 = split "\0"
-
--- | A convenience function for reading in a @"\\NUL"@ separated list of
--- strings. This is commonly used when dealing with paths.
---
--- > readSplit0 $ find "-print0"
-readSplit0 :: Proc () -> IO [ByteString]
-readSplit0 p = withReadSplit0 p pure
-
--- | A convenience function for reading the output lines of a `Proc`.
---
--- Note: Please consider using @'readSplit0'@ instead if you can.
-readLines :: Proc () -> IO [ByteString]
-readLines p = withReadLines p pure
-
--- | Read output into a list of words
-readWords :: Proc () -> IO [ByteString]
-readWords p = withReadWords p pure
-
--- | Like `readProc`, but attempts to `Prelude.read` the result.
-readAuto :: Read a => Proc () -> IO a
-readAuto p = read . toString <$> readProc p
+endBy0 :: ByteString -> [ByteString]
+endBy0 = endBy "\0"
 
 -- | Mimics the shell builtin "cd".
 cd' :: FilePath -> IO ()
@@ -937,7 +891,7 @@ instance {-# OVERLAPS #-} (io ~ IO (), path ~ FilePath) => Cd (path -> io) where
 -- >>> yes |> head "-n" 5 |> xargs1 "\n" (const $ pure $ Sum 1)
 -- Sum {getSum = 5}
 xargs1 :: (NFData a, Monoid a) => ByteString -> (ByteString -> Proc a) -> Proc a
-xargs1 n f = readInputSplitP n (fmap mconcat . mapM f)
+xargs1 n f = readInputEndByP n (fmap mconcat . mapM f)
 
 -- | Simple @`Proc`@ that reads its input and can react to the output by
 -- calling other @`Proc`@'s which can write something to its stdout.
@@ -949,16 +903,16 @@ readInputP f = nativeProc $ \i o e -> do
         liftIO $ runProc' i' o e (f s)
 
 -- | Like @`readInputP`@, but splits the input.
-readInputSplitP :: (NFData a, Shell io) => ByteString -> ([ByteString] -> Proc a) -> io a
-readInputSplitP s f = readInputP (f . split s)
+readInputEndByP :: (NFData a, Shell io) => ByteString -> ([ByteString] -> Proc a) -> io a
+readInputEndByP s f = readInputP (f . endBy s)
 
 -- | Like @`readInputP`@, but splits the input on 0 bytes.
-readInputSplit0P :: (NFData a, Shell io) => ([ByteString] -> Proc a) -> io a
-readInputSplit0P = readInputSplitP "\0"
+readInputEndBy0P :: (NFData a, Shell io) => ([ByteString] -> Proc a) -> io a
+readInputEndBy0P = readInputEndByP "\0"
 
 -- | Like @`readInputP`@, but splits the input on new lines.
 readInputLinesP :: (NFData a, Shell io) => ([ByteString] -> Proc a) -> io a
-readInputLinesP = readInputSplitP "\n"
+readInputLinesP = readInputEndByP "\n"
 
 -- | Create a null file handle.
 withNullInput :: (Handle -> IO a) -> IO a

@@ -58,10 +58,10 @@ properties = testGroup "Properties"
     , testProperty "pureProc id" $ \s -> ioProperty $ do
         let
             s' = bytesToString s
-        k <- readProc $ s' >>> pureProc id
+        k <- apply (pureProc id) s'
         pure $ s' === k
     , testProperty "pureProc (map toUpper)" $ \s -> ioProperty $ do
-        k <- readProc $ s >>> pureProc (C8.map toUpper)
+        k <- apply (pureProc (C8.map toUpper)) s
         pure $ C8.map toUpper s === k
     , testProperty "pureProc . const === writeOutput" $ \s -> ioProperty $ do
         let
@@ -87,7 +87,7 @@ properties = testGroup "Properties"
     ]
 
 withTmp :: (ByteString -> IO a) -> IO a
-withTmp = bracket (readTrim mktemp) rm
+withTmp = bracket (mktemp |> captureTrim) rm
 
 checkFailure :: Failure -> ByteString -> [ByteString] -> Int -> IO ()
 checkFailure f prog args code = do
@@ -98,73 +98,74 @@ checkFailure f prog args code = do
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
     [ testCase "Read stdout" $ do
-        l <- readProc $ echo "test"
+        l <- echo "test" |> capture
         l @?= "test\n"
     , testCase "Redirect to /dev/null" $ do
-        l <- readProc $ echo "test" &> devNull
+        l <- echo "test" &> devNull |> capture
         l @?= ""
     , testCase "Redirct stderr" $ do
         l <- echo "test" &> StdErr |!> capture
         l @?= "test\n"
     , testCase "Redirect to file (Truncate)" $ withTmp $ \t -> do
         echo "test" &> Truncate t
-        r <- readProc $ cat t
+        r <- cat t |> capture
         "test\n" @?= r
     , testCase "Redirect to file (Append)" $ withTmp $ \t -> do
         echo "test" &> Truncate t
         echo "test" &> Append t
-        r <- readProc $ cat t
+        r <- cat t |> capture
         "test\ntest\n" @?= r
     , testCase "Long pipe" $ do
-        r <- readProc $ echo "test" |> tr "-d" "e" |> tr "-d" "s"
+        r <- echo "test" |> tr "-d" "e" |> tr "-d" "s" |> capture
         r @?= "tt\n"
     , testCase "Pipe stderr" $ replicateM_ 100 $ do
-        r <- readProc $ echo "test" &> StdErr |!> cat
+        r <- echo "test" &> StdErr |!> cat |> capture
         r @?= "test\n"
     , testCase "Lazy read" $ replicateM_ 100 $ do
-        withRead (cat "/dev/zero") $ \s -> do
+        cat "/dev/zero" |> readInput (\s -> do
             BS.take 6 s @?= "\0\0\0\0\0\0"
+            )
     , testCase "Multiple outputs" $ do
-        l <- readProc $ (echo (1 :: Int) >> echo (2 :: Int)) |> cat
+        l <- (echo (1 :: Int) >> echo (2 :: Int)) |> cat |> capture
         l @?= "1\n2\n"
     , testCase "Terminate upstream processes" $ do
         Left x <- tryFailure (mkProc "false" ["dummy"] |> (sleep 1 >> false "Didn't kill"))
         checkFailure x "false" ["dummy"] 1
     , testCase "Write to process" $ withTmp $ \t -> do
         writeProc (cat &> Truncate t) "Hello"
-        r <- readProc (cat t)
+        r <- cat t |> capture
         r @?= "Hello"
         writeProc (cat &> Truncate t) "Goodbye"
-        r <- readProc (cat t)
+        r <- cat t |> capture
         r @?= "Goodbye"
     , testCase "apply" $ do
         r <- apply (tr "-d" "es") "test"
         r @?= "tt"
     , testCase "ignoreFailure" $ replicateM_ 30 $ do
-        r <- readProc $ ignoreFailure false |> echo "Hello"
+        r <- ignoreFailure false |> echo "Hello" |> capture
         r @?= "Hello\n"
     , testCase "Read failure" $ replicateM_ 30 $ do
-        Left r <- tryFailure $ readProc $ false "dummy"
+        Left r <- tryFailure $ false "dummy" |> capture
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain start" $ replicateM_ 30 $ do
-        Left r <- tryFailure $ readProc $ false "dummy" |> echo "test" |> true
+        Left r <- tryFailure $ false "dummy" |> echo "test" |> true |> capture
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain middle" $ replicateM_ 30 $ do
-        Left r <- tryFailure $ readProc $ echo "test" |> false "dummy" |> true
+        Left r <- tryFailure $ echo "test" |> false "dummy" |> true |> capture
         checkFailure r "false" ["dummy"] 1
     , testCase "Read failure chain end" $ replicateM_ 30 $ do
-        Left r <- tryFailure $ readProc $ echo "test" |> true |> false "dummy"
+        Left r <- tryFailure $ echo "test" |> true |> false "dummy" |> capture
         checkFailure r "false" ["dummy"] 1
     , testCase "Lazy read checks code" $ replicateM_ 30 $ do
-        Left r <- tryFailure $ withRead (cat "/dev/urandom" |> false "dummy") $ pure . BS.take 3
+        Left r <- tryFailure $ cat "/dev/urandom" |> false "dummy" |> readInput (pure . BS.take 3)
         checkFailure r "false" ["dummy"] 1
     , testCase "Identifier odd chars" $ encodeIdentifier "1@3.-" @?= "_1'40'3''_"
     , testCase "Identifier make lower" $ encodeIdentifier "T.est" @?= "_T''est"
     , testCase "pureProc closes input" $ do
-        r <- readProc $ cat "/dev/urandom" |> pureProc (const "test")
+        r <- cat "/dev/urandom" |> pureProc (const "test") |> capture
         r @?= "test"
     , testCase "pureProc closes output" $ do
-        r <- readProc $ pureProc (const "test") |> cat
+        r <- pureProc (const "test") |> cat |> capture
         r @?= "test"
     , testCase "pureProc doesn't close std handles" $ do
         runProc $ pureProc (const "")
@@ -176,7 +177,7 @@ unitTests = testGroup "Unit tests"
         b <- hIsOpen stderr
         b @?= True
     , testCase "pureProc sanity check" $ do
-        r <- readProc $ printf "Hello" |> pureProc id |> cat
+        r <- printf "Hello" |> pureProc id |> cat |> capture
         r @?= "Hello"
     , testCase "bind nativeProc" $ do
         r <- writeOutput "te" >> writeOutput "st" |> capture
@@ -217,10 +218,10 @@ unitTests = testGroup "Unit tests"
         a @?= b
     , testCase "complex example with intermediate handles (>BUFSIZ)" $ do
         let c = 20000000
-        s <- readTrim $ cat "/dev/urandom" |> readInputP (\s -> writeOutput (C8.map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c"
+        s <- cat "/dev/urandom" |> readInputP (\s -> writeOutput (C8.map toUpper s) |> cat) |> Main.head "-c" c |> wc "-c" |> captureTrim
         show c @?= toString s
     , testCase "subshells" $ do
-      s <- readProc $ echo "ac" |> (cat >> echo "bc") |> tr "-d" "c"
+      s <- echo "ac" |> (cat >> echo "bc") |> tr "-d" "c" |> capture
       s @?= "a\nb\n"
     , testCase "unicode" $ do
         s <- writeOutput "üか" |> cat |> capture
