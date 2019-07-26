@@ -49,7 +49,7 @@ properties :: TestTree
 properties = testGroup "Properties"
     [ testProperty "trim = trim . trim" $ \l -> trim l == trim (trim l)
     , testProperty "encodeIdentifier creates a unique encoding"
-        $ \(l1,l2) -> (encodeIdentifier l1 == encodeIdentifier l2) == (l1 == l2)
+        $ \(l1,l2) -> (encodeIdentifier l1 == encodeIdentifier l2) == (takeFileName l1 == takeFileName l2)
     , testProperty "writeOutput" $ \s -> ioProperty $ do
         let
             s' = bytesToString s
