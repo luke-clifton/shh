@@ -18,6 +18,7 @@ import Control.Monad
 import Data.Char
 import Data.Word
 import Control.Concurrent.Async
+import System.FilePath (takeFileName)
 import System.IO
 
 load SearchPath
