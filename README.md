@@ -4,18 +4,10 @@
 [![](https://img.shields.io/hackage/v/shh-extras.svg?colorB=%23999&label=shh-extras)](http://hackage.haskell.org/package/shh-extras)
 [![](https://builds.sr.ht/~lukec/shh/nix.yml.svg)](https://builds.sr.ht/~lukec/shh/nix.yml?)
 
+<details><summary>
 Shh is a library to enable convinient shell-like programming in Haskell.
 It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
-
-It's primary purpose is in replacing shell scripts. As such, many
-functions are provided to mimic the shell environment, and porting shell
-scripts to shh should be fairly straightforward. A simple
-["cargo culting" port](docs/porting.md) should work in most situations,
-and perhaps be even more robust than the original.
-
-It is also a wrapper tool around launching GHCi as a shell.
-
-<details><summary>This is a literate Haskell file</summary>
+</summary>
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -36,6 +28,15 @@ load SearchPath ["echo", "cat", "xxd", "head", "curl", "sleep"]
 test :: IO ()
 test = do
 ```
+
+It's primary purpose is in replacing shell scripts. As such, many
+functions are provided to mimic the shell environment, and porting shell
+scripts to shh should be fairly straightforward. A simple
+["cargo culting" port](docs/porting.md) should work in most situations,
+and perhaps be even more robust than the original.
+
+It is also a wrapper tool around launching GHCi as a shell.
+
 
 </details>
 
