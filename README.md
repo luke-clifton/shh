@@ -16,6 +16,7 @@ and perhaps be even more robust than the original.
 It is also a wrapper tool around launching GHCi as a shell.
 
 <details><summary>(This file is a literate Haskell file, some code blocks have been hidden.)</summary>
+
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -33,6 +34,7 @@ load SearchPath ["echo"]
 test :: IO ()
 test = do
 ```
+
 </details>
 
 It supports
