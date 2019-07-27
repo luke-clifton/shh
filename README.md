@@ -15,6 +15,26 @@ and perhaps be even more robust than the original.
 
 It is also a wrapper tool around launching GHCi as a shell.
 
+<detail><summary>(This file is a literate Haskell file, some code blocks have been hidden.)</summary>
+```haskell
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
+module Readme (test) where
+
+import Shh
+
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
+
+load SearchPath ["echo"]
+
+test :: IO ()
+test = do
+```
+</detail>
+
 It supports
 
  * Automatically defining a function for each executable on your `$PATH`
@@ -23,13 +43,15 @@ It supports
 
  * Redirction of stdout and stderr
        
-       -- Redirect stdout
-       λ echo "Hello" &> StdErr
-       λ echo "Hello" &> Truncate ".tmp_file"
-
-       -- Redirect stderr
-       λ echo "Hello" &!> Append "/dev/null"
-       λ echo "Hello" &!> StdOut
+   ```haskell
+     -- Redirect stdout
+     echo "Hello" &> StdErr
+     echo "Hello" &> Truncate ".tmp_file"
+   
+     -- Redirect stderr
+     echo "Hello" &!> Append "/dev/null"
+     echo "Hello" &!> StdOut
+   ```
 
 
  * Piping stdout or stderr to the input of a chained process

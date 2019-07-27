@@ -67,9 +67,10 @@ executable shh-example
   
 
 test-suite shh-tests
-  ghc-options: -threaded -with-rtsopts=-N
+  ghc-options: -threaded -with-rtsopts=-N -pgmL markdown-unlit
   default-language: Haskell2010
   build-depends:
+    markdown-unlit,
     base >=4.9,
     async,
     bytestring,
@@ -83,4 +84,5 @@ test-suite shh-tests
     utf8-string
   hs-source-dirs: test
   main-is: Test.hs
+  other-modules: Readme
   type: exitcode-stdio-1.0
