@@ -29,6 +29,8 @@ test :: IO ()
 test = do
 ```
 
+</details>
+
 It's primary purpose is in replacing shell scripts. As such, many
 functions are provided to mimic the shell environment, and porting shell
 scripts to shh should be fairly straightforward. A simple
@@ -36,9 +38,6 @@ scripts to shh should be fairly straightforward. A simple
 and perhaps be even more robust than the original.
 
 It is also a wrapper tool around launching GHCi as a shell.
-
-
-</details>
 
 It supports
 
