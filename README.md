@@ -15,7 +15,7 @@ and perhaps be even more robust than the original.
 
 It is also a wrapper tool around launching GHCi as a shell.
 
-<details><summary>(This file is a literate Haskell file, some code blocks have been hidden.)</summary>
+<details><summary>This is a literate Haskell file</summary>
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
@@ -25,11 +25,13 @@ module Readme (test) where
 
 import Shh
 
+import Control.Concurrent.Async
+import Prelude hiding (head)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-load SearchPath ["echo"]
+load SearchPath ["echo", "cat", "xxd", "head", "curl", "sleep"]
 
 test :: IO ()
 test = do
@@ -57,16 +59,22 @@ It supports
 
 
  * Piping stdout or stderr to the input of a chained process
-       
-       λ cat "/dev/urandom" |> xxd |> head "-n" 5
+   
+   ```haskell
+     cat "/dev/urandom" |> xxd |> head "-n" 5
+   ```
 
  * Multiple processes sequentially feeding a single process
 
-       λ (echo 1 >> echo 2) |> cat
+   ```haskell
+     (echo 1 >> echo 2) |> cat
+   ```
 
  * Use of Haskells concurrency primitives.
 
-       λ race (sleep 1) $ curl "http://this_needs_to_timeout_after_1_second"
+   ```haskell
+     race (sleep 1) $ curl "http://this_needs_to_timeout_after_1_second"
+   ```
 
        λ d <- readTrim $ mktemp "-d"
        λ :{
