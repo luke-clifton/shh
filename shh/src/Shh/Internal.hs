@@ -18,23 +18,22 @@ module Shh.Internal where
 
 import Prelude hiding (lines, unlines)
 
-import qualified Data.List.Split as Split
-import GHC.Stack
-import Control.Concurrent.MVar
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
 import Control.DeepSeq (force,NFData)
 import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.ByteString as ByteString
-import qualified Data.ByteString.Lazy.Search as Search
 import Data.ByteString.Lazy (ByteString, hGetContents, toStrict)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
-import Data.ByteString.Lazy.UTF8 (fromString, toString)
 import qualified Data.ByteString.Lazy.Char8 as BC8
+import qualified Data.ByteString.Lazy.Search as Search
+import Data.ByteString.Lazy.UTF8 (fromString, toString)
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import Data.List (intercalate)
+import qualified Data.List.Split as Split
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Typeable
@@ -46,6 +45,7 @@ import GHC.IO.Handle hiding (hGetContents)
 import GHC.IO.Handle.Internals
 import GHC.IO.Handle.Types
 import GHC.IO.Handle.Types (Handle(..))
+import GHC.Stack
 import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
