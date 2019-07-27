@@ -8,6 +8,7 @@ let
       , directory, doctest, filepath, mtl, process, split, stdenv
       , stringsearch, tasty, tasty-hunit, tasty-quickcheck
       , template-haskell, temporary, unix, utf8-string, hostname
+      , markdown-unlit
       }:
       mkDerivation {
         pname = "shh";
@@ -24,7 +25,7 @@ let
         ];
         testHaskellDepends = [
           async base bytestring directory doctest tasty tasty-hunit
-          tasty-quickcheck utf8-string
+          tasty-quickcheck utf8-string markdown-unlit
         ];
         description = "Simple shell scripting from Haskell";
         license = stdenv.lib.licenses.bsd3;

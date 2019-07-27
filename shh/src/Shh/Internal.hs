@@ -290,7 +290,7 @@ writeError s = nativeProc $ \_ _ e -> do
 -- "y\ny\ny\n"
 readInput :: (NFData a, Shell io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
-    hGetContents i >>= f
+    hGetContents i >>= f . fromBytes
 
 -- | Join a list of @ByteString@s with newline characters, terminating it
 -- with a newline.
@@ -353,6 +353,18 @@ writeProc p s = writeOutput s |> p
 -- Same as @p |> readInput f@
 withRead :: (Shell f, NFData b) => Proc a -> (ByteString -> IO b) -> f b
 withRead p f = p |> readInput f
+
+class Bytes a where
+    toBytes :: a -> ByteString
+    fromBytes :: ByteString -> a
+
+instance {-# OVERLAPS #-} Bytes String where
+    toBytes = BC8.pack
+    fromBytes = BC8.unpack
+
+instance {-# OVERLAPPABLE #-} a ~ ByteString => Bytes a where
+    toBytes = id
+    fromBytes = id
 
 -- | Type used to represent destinations for redirects. @`Truncate` file@
 -- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.

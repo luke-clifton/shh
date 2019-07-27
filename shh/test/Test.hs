@@ -21,6 +21,8 @@ import Control.Concurrent.Async
 import System.FilePath (takeFileName)
 import System.IO
 
+import Readme
+
 load SearchPath
     [ "wc", "head", "tr", "echo", "cat", "true", "false", "mktemp", "sleep"
     , "rm", "printf", "xargs", "find"
