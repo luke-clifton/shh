@@ -485,9 +485,11 @@ captureEndBy0 = captureEndBy "\0"
 captureLines :: Shell io => io [ByteString]
 captureLines = captureEndBy "\n"
 
+-- | Capture the words of the output.
 captureWords :: Shell io => io [ByteString]
 captureWords = readInput (pure . BC8.words)
 
+-- | Capture the output of the process and attempt to `read` it.
 captureRead :: (Shell io, Read a, NFData a) => io a
 captureRead = readInput (pure . read . toString)
 
