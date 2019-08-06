@@ -1,6 +1,6 @@
 # Revision history for shh
 
-## 0.7.0.0
+## 0.7.0.0 -- 2019-08-06
 
 This is a fairly major refactor which consolidates a bunch of type classes
 and simplifies a few things.
