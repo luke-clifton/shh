@@ -27,7 +27,10 @@ import qualified Data.ByteString.Lazy.Char8 as Char8
 import Data.List (nub)
 import Data.Char
 
-load SearchPath ["echo", "base64", "cat", "head", "curl", "sleep", "mktemp", "ls", "wc", "find", "tr", "users", "shasum", "false"]
+load SearchPath ["echo", "base64", "cat", "head", "sleep", "mktemp", "ls", "wc", "find", "tr", "users", "sha256sum", "false", "true"]
+
+curl :: Cmd
+curl = true
 
 test :: IO ()
 test = do
@@ -114,11 +117,9 @@ It supports
      writeOutput "Hello\n" |> cat
      -- Hello
 
-     "Hello" >>> shasum
-     -- f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -
+     "Hello" >>> sha256sum
 
-     shasum <<< "Hello"
-     -- f7ff9e8b7bb2e09b70935a5d785e0cc5d9d0abf0  -
+     sha256sum <<< "Hello"
    ```
 
  * Proper exceptions, when a process exits with a failure code, an exception
