@@ -354,18 +354,6 @@ writeProc p s = writeOutput s |> p
 withRead :: (Shell f, NFData b) => Proc a -> (ByteString -> IO b) -> f b
 withRead p f = p |> readInput f
 
-class Bytes a where
-    toBytes :: a -> ByteString
-    fromBytes :: ByteString -> a
-
-instance {-# OVERLAPS #-} Bytes String where
-    toBytes = BC8.pack
-    fromBytes = BC8.unpack
-
-instance {-# OVERLAPPABLE #-} a ~ ByteString => Bytes a where
-    toBytes = id
-    fromBytes = id
-
 -- | Type used to represent destinations for redirects. @`Truncate` file@
 -- is like @> file@ in a shell, and @`Append` file@ is like @>> file@.
 data Stream = StdOut | StdErr | Truncate ByteString | Append ByteString
