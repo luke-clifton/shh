@@ -290,7 +290,7 @@ writeError s = nativeProc $ \_ _ e -> do
 -- "y\ny\ny\n"
 readInput :: (NFData a, Shell io) => (ByteString -> IO a) -> io a
 readInput f = nativeProc $ \i _ _ -> do
-    hGetContents i >>= f . fromBytes
+    hGetContents i >>= f
 
 -- | Join a list of @ByteString@s with newline characters, terminating it
 -- with a newline.
