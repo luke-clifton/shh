@@ -27,7 +27,7 @@ import qualified Data.ByteString.Lazy.Char8 as Char8
 import Data.List (nub)
 import Data.Char
 
-load SearchPath ["echo", "cat", "xxd", "head", "curl", "sleep", "mktemp", "ls", "wc", "find", "tr", "users", "shasum", "false"]
+load SearchPath ["echo", "base64", "cat", "head", "curl", "sleep", "mktemp", "ls", "wc", "find", "tr", "users", "shasum", "false"]
 
 test :: IO ()
 test = do
@@ -65,7 +65,7 @@ It supports
  * Piping stdout or stderr to the input of a chained process
    
    ```haskell
-     cat "/dev/urandom" |> xxd |> head "-n" 5
+     cat "/dev/urandom" |> base64 |> head "-n" 5
    ```
 
  * Multiple processes sequentially feeding a single process
@@ -104,11 +104,8 @@ It supports
 
    ```haskell
      cat "/dev/urandom"
-       |> xxd 
+       |> base64
        |> readInput (mapM_ Char8.putStrLn . take 3 . Char8.lines)
-     -- 00000000: 8fcb ebee 9228 a897 3bfc 1d05 491d aceb  .....(..;...I...
-     -- 00000010: 47de 3ea3 2788 44ac 9b85 0a0f a458 b949  G.>.'.D......X.I
-     -- 00000020: 5308 ddfe 5790 5a5f 39e3 bbb6 b689 2b03  S...W.Z_9.....+.
    ```
 
  * Write strings to stdin of a process.
