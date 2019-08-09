@@ -205,6 +205,13 @@ There is a tool called `shh` which is a fairly small wrapper around launching
 GHCi which automatically loads your environment and allows you to have custom
 config when using GHCi as a shell.
 
+To install it, one option is to use `cabal new-install`
+
+```bash
+cabal new-install --lib shh
+cabal new-install --lib ssh-extras
+```
+
 The `shh` binary will look in your `$SHH_DIR` (defaults to `$HOME/.shh`) for
 a `Shell.hs`, `init.ghci` and `wrapper` files. If these don't exist default
 ones will be created.
