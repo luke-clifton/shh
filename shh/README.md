@@ -180,7 +180,7 @@ explicit, and thus always more verbose than most other shells.
 
 ## Usage
 
-Enable Temlpate Haskell and load the environment
+Enable Template Haskell and load the environment
 
     {-# LANGUAGE TemplateHaskell #-}
     $(loadEnv SearchPath)
@@ -273,7 +273,7 @@ There are quite a few players in the "shell programming for Haskell" field.
 This table attempts to summarise some of the differences.
 
  * `Pipe Style` refers to how processes are joined together, "native" means
-   that the mechanisms provided by the OS are used, while "via haskell" means
+   that the mechanisms provided by the OS are used, while "via Haskell" means
    that the data is read into the Haskell process, and then written into the
    subprocess.
  * `Via Shell` refers to whether subprocesses are launched directly or via
