@@ -83,14 +83,17 @@ main = do
             setOwnerWritable True $
             emptyPermissions
         doIfMissing "init.ghci" $ do
-            tryFailure (exe (pack wrapper) "ghc-pkg" "latest" "shh") >>= \case
+            putStrLn "Generating init.ghci..."
+            putStrLn " ... checking for shh..."
+            tryFailure (exe (pack wrapper) "ghc" "-e" "import Shh") >>= \case
                 Left _ -> do
                     putStrLn "Please make the shh and shh-extras packages available in the shh"
                     putStrLn "environment (install it globally or modify the wrapper, see docs)."
                     putStrLn "Aborting"
                     exitFailure
                 Right _ -> writeFile "init.ghci" defaultInitGhci
-            tryFailure (exe (pack wrapper) "ghc-pkg" "latest" "shh-extras") >>= \case
+            putStrLn " ... checking for shh-extras..."
+            tryFailure (exe (pack wrapper) "ghc" "-e" "import Shh.Prompt") >>= \case
                 Left _ -> do
                     putStrLn "## WARNING ##########################################################"
                     putStrLn "# You do not have the shh-extras library installed, and so we are"
