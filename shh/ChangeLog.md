@@ -1,5 +1,9 @@
 # Revision history for shh
 
+## 0.7.0.1 -- 2019-08-12
+
+Change how we test for library installation.
+
 ## 0.7.0.0 -- 2019-08-06
 
 This is a fairly major refactor which consolidates a bunch of type classes
