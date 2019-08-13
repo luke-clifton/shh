@@ -115,7 +115,7 @@ class Shell f where
     runProc :: Proc a -> f a
 
 -- | Helper function that creates and potentially executes a @`Proc`@
-buildProc :: Shell f => (Handle -> Handle -> Handle -> IO () -> IO () -> IO a) -> f a
+buildProc :: Shell f => (Handle -> Handle -> Handle -> IO a) -> f a
 buildProc = runProc . Proc
 
 -- | Like @`|>`@ except that it keeps both return results. Be aware
@@ -124,22 +124,22 @@ buildProc = runProc . Proc
 --
 -- You probably want to use @`|>`@ unless you know you don't.
 pipe :: Shell f => Proc a -> Proc b -> f (a, b)
-pipe (Proc a) (Proc b) = buildProc $ \i o e pl pw ->
+pipe (Proc a) (Proc b) = buildProc $ \i o e ->
     withPipe $ \r w -> do
         let
-            a' = a i w e (pure ()) (hClose w)
-            b' = b r o e (pure ()) (hClose r)
-        (pl >> concurrently a' b') `finally` pw
+            a' = a i w e `finally` (hClose w)
+            b' = b r o e `finally` (hClose r)
+        concurrently a' b'
 
 
 -- | Like @`pipe`@, but plumbs stderr. See the warning in @`pipe`@.
 pipeErr :: Shell f => Proc a -> Proc b -> f (a, b)
-pipeErr (Proc a) (Proc b) = buildProc $ \i o e pl pw -> do
+pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
     withPipe $ \r w -> do
         let
-            a' = a i o w (pure ()) (hClose w)
-            b' = b r o e (pure ()) (hClose r)
-        (pl >> concurrently a' b') `finally` pw
+            a' = a i o w `finally` (hClose w)
+            b' = b r o e `finally` (hClose r)
+        concurrently a' b'
 
 
 -- | Use this to send the output of on process into the input of another.
@@ -188,11 +188,11 @@ infixl 1 |!>
 -- >>> echo "Ignore me" &> Append "/dev/null"
 (&>) :: Shell f => Proc a -> Stream -> f a
 p &> StdOut = runProc p
-(Proc f) &> StdErr = buildProc $ \i _ e pl pw -> f i e e pl pw
-(Proc f) &> (Truncate path) = buildProc $ \i _ e pl pw ->
-    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e pl pw
-(Proc f) &> (Append path) = buildProc $ \i _ e pl pw ->
-    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e pl pw
+(Proc f) &> StdErr = buildProc $ \i _ e -> f i e e
+(Proc f) &> (Truncate path) = buildProc $ \i _ e ->
+    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e
+(Proc f) &> (Append path) = buildProc $ \i _ e ->
+    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e
 infixl 9 &>
 
 -- | Redirect stderr of this process to another location
@@ -201,18 +201,17 @@ infixl 9 &>
 -- Shh
 (&!>) :: Shell f => Proc a -> Stream -> f a
 p &!> StdErr = runProc $ p
-(Proc f) &!> StdOut = buildProc $ \i o _ pl pw -> f i o o pl pw
-(Proc f) &!> (Truncate path) = buildProc $ \i o _ pl pw ->
-    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h pl pw
-(Proc f) &!> (Append path) = buildProc $ \i o _ pl pw ->
-    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h pl pw
+(Proc f) &!> StdOut = buildProc $ \i o _ -> f i o o
+(Proc f) &!> (Truncate path) = buildProc $ \i o _ ->
+    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h
+(Proc f) &!> (Append path) = buildProc $ \i o _ ->
+    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h
 infixl 9 &!>
 
 -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
 -- @stdout@ and @stderr@ of the resulting @`Proc`@
 nativeProc :: (Shell f, NFData a) => (Handle -> Handle -> Handle -> IO a) -> f a
-nativeProc f = runProc $ Proc $ \i o e pl pw -> handle handler $ do
-    pl
+nativeProc f = runProc $ Proc $ \i o e -> handle handler $ do
     -- We duplicate these so that you can't accidentally close the
     -- real ones.
     withDuplicates i o e $ \i' o' e' -> do
@@ -220,7 +219,6 @@ nativeProc f = runProc $ Proc $ \i o e pl pw -> handle handler $ do
             `finally` (hClose i')
             `finally` (hClose o')
             `finally` (hClose e')
-            `finally` pw
 
     where
         -- The resource vanished error only occurs when upstream pipe closes.
@@ -369,12 +367,11 @@ devNull = Truncate "/dev/null"
 -- @Proc@'s can communicate to each other via @stdin@, @stdout@ and @stderr@
 -- and can communicate to Haskell via their parameterised return type, or by
 -- throwing an exception.
-newtype Proc a = Proc (Handle -> Handle -> Handle -> IO () -> IO () -> IO a)
+newtype Proc a = Proc (Handle -> Handle -> Handle -> IO a)
     deriving Functor
 
 instance MonadIO Proc where
-    liftIO a = buildProc $ \_ _ _ pl pw -> do
-        (pl >> a) `finally` pw
+    liftIO a = buildProc $ \_ _ _ -> a
 
 -- | The `Semigroup` instance for `Proc` pipes the stdout of one process
 -- into the stdin of the next. However, consider using `|>` instead which
@@ -385,11 +382,10 @@ instance Semigroup (Proc a) where
     (<>) = (|>)
 
 instance (a ~ ()) => Monoid (Proc a) where
-    mempty = buildProc $ \_ _ _ pl pw -> pl `finally` pw
+    mempty = buildProc $ \_ _ _ -> pure ()
 
 instance Applicative Proc where
-    pure a = buildProc $ \_ _ _ pw pl -> do
-        pw `finally` pl
+    pure a = buildProc $ \_ _ _  -> do
         pure a
 
     f <*> a = do
@@ -398,11 +394,11 @@ instance Applicative Proc where
         pure (f' a')
         
 instance Monad Proc where
-    (Proc a) >>= f = buildProc $ \i o e pl pw -> do
-        ar <- a i o e pl (pure ())
+    (Proc a) >>= f = buildProc $ \i o e -> do
+        ar <- a i o e
         let
             Proc f' = f ar
-        f' i o e (pure ()) pw
+        f' i o e
 
 instance Shell IO where
     runProc = runProc' stdin stdout stderr
@@ -416,7 +412,7 @@ instance Shell Proc where
 -- so we ignore that corner case (see `hDup`).
 runProc' :: Handle -> Handle -> Handle -> Proc a -> IO a
 runProc' i o e (Proc f) = do
-    r <- f i o e (pure ()) (pure ())
+    r <- f i o e
     -- Evaluate to WHNF to uncover any ResourceVanished exceptions
     -- that may be hiding in there from `nativeProc`. These should
     -- not happen under normal circumstances, but we would at least
@@ -428,11 +424,11 @@ runProc' i o e (Proc f) = do
 -- The boolean represents whether we should delegate control-c
 -- or not. Most uses of @`mkProc'`@ in Shh do not delegate control-c.
 mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
-mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
+mkProc' delegate cmd args = Proc $ \i o e -> do
     let
         cmd' = BC8.unpack cmd
         args' = BC8.unpack <$> args
-    (bracket
+    bracket
         (createProcess_ cmd' (proc cmd' args')
             { std_in = UseHandle i
             , std_out = UseHandle o
@@ -442,10 +438,7 @@ mkProc' delegate cmd args = Proc $ \i o e pl pw -> do
             }
         )
         (\(_,_,_,ph) -> terminateProcess ph)
-        $ \(_,_,_,ph) -> do
-            pl
-            (waitProc cmd args ph `onException` terminateProcess ph)
-        ) `finally` pw
+        $ \(_,_,_,ph) -> waitProc cmd args ph `onException` terminateProcess ph
 
 -- | Create a `Proc` from a command and a list of arguments. Does not delegate
 -- control-c handling.
@@ -540,8 +533,8 @@ trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 -- | Run a `Proc` action, catching any `Failure` exceptions
 -- and returning them.
 tryFailure :: Shell m => Proc a -> m (Either Failure a)
-tryFailure (Proc f) = buildProc $ \i o e pl pw -> do
-    try $ f i o e pl pw
+tryFailure (Proc f) = buildProc $ \i o e -> do
+    (try $ f i o e)
 
 
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
