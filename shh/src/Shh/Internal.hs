@@ -533,8 +533,7 @@ trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 -- | Run a `Proc` action, catching any `Failure` exceptions
 -- and returning them.
 tryFailure :: Shell m => Proc a -> m (Either Failure a)
-tryFailure (Proc f) = buildProc $ \i o e -> do
-    (try $ f i o e)
+tryFailure (Proc f) = buildProc $ \i o e -> try $ f i o e
 
 
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
