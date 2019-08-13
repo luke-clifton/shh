@@ -229,4 +229,22 @@ unitTests = testGroup "Unit tests"
     , testCase "unicode" $ do
         s <- writeOutput "üか" |> cat |> capture
         toString s @?= "üか"
+    , testCase "tryFailure capture 1" $ do
+        s <- (tryFailure (false |> capture)) |> capture
+        s @?= ""
+    , testCase "tryFailure capture 2" $ do
+        s <- (tryFailure (false |> capture)) |!> capture
+        s @?= ""
+    , testCase "tryFailure capture 3" $ do
+        s <- (tryFailure (false |!> capture)) |> capture
+        s @?= ""
+    , testCase "tryFailure capture 4" $ do
+        s <- (tryFailure (false |!> capture)) |!> capture
+        s @?= ""
+    , testCase "pipeErr" $ do
+        s <- writeOutput "abcd" |> capture `pipeErr` capture
+        s @?= ("abcd", "")
+    , testCase "pipe" $ do
+        s <- writeOutput "abcd" |> capture `pipe` capture
+        s @?= ("abcd", "")
     ]

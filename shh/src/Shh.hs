@@ -51,6 +51,8 @@ module Shh
     -- | == Piping and Redirection
     , (|>)
     , (|!>)
+    , pipe
+    , pipeErr
     , (&>)
     , (&!>)
     , (<|)
