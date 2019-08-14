@@ -307,7 +307,7 @@ This table attempts to summarise some of the differences.
 
 | Library | Exception on non-zero | Contains arguments | Contains `stderr` | Terminates pipeline |
 |---------|-----------------------|--------------------|-------------------|---------------------|
-| Shh     | Yes                   | Yes                | No                | Yes                 |
+| Shh     | Yes                   | Yes                | Optional          | Yes                 |
 | Shelly  | Yes                   | Yes                | Yes               | Yes                 |
 | Turtle  | Sometimes             | No                 | No                | ?                   |
 | shell-conduit | Yes             | Yes                | No                | No                  |

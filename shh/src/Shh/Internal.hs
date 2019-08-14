@@ -88,10 +88,12 @@ initInteractive = do
 -- The only exception to this is when a process is terminated
 -- by @SIGPIPE@ in a pipeline, in which case we ignore it.
 data Failure = Failure
-    { failureProg  :: ByteString
-    , failureArgs  :: [ByteString]
-    , failureStack :: CallStack
-    , failureCode  :: Int
+    { failureProg   :: ByteString
+    , failureArgs   :: [ByteString]
+    , failureStack  :: CallStack
+    , failureCode   :: Int
+    -- | Failure can optionally contain the stderr of a process.
+    , failureStdErr :: Maybe ByteString
     }
 
 instance Show Failure where
@@ -105,6 +107,8 @@ instance Show Failure where
         , "] at "
         , prettyCallStack (failureStack f)
         ]
+        ++ flip (maybe []) (failureStdErr f) (\s ->
+           ["\n-- stderr --\n" ++ BC8.unpack s])
 
 instance Exception Failure
 
@@ -509,7 +513,7 @@ waitProc :: HasCallStack => ByteString -> [ByteString] -> ProcessHandle -> IO ()
 waitProc cmd arg ph = waitForProcess ph >>= \case
     ExitFailure c
         | fromIntegral c == negate sigPIPE -> pure ()
-        | otherwise -> throwIO $ Failure cmd arg callStack c
+        | otherwise -> throwIO $ Failure cmd arg callStack c Nothing
     ExitSuccess -> pure ()
 
 
@@ -535,6 +539,20 @@ trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 tryFailure :: Shell m => Proc a -> m (Either Failure a)
 tryFailure (Proc f) = buildProc $ \i o e -> try $ f i o e
 
+-- | Capture the stderr of the proc, and attach it to any @`Failure`@
+-- exceptions that are thrown. The stderr is also forwarded to downstream
+-- processes, or the inherited stderr handle. Note that capturing stderr
+-- inherently requires that the stderr is accumulated in memory, so be
+-- careful about processes that dump a lot of information.
+failWithStdErr :: Shell io => Proc a -> io a
+failWithStdErr p = runProc $ do
+    r <- tryFailure p `pipeErr` readInputP (\i -> do
+        writeError i
+        pure i
+        )
+    case r of
+        (Right a, _) -> pure a
+        (Left f, err) -> liftIO $ throwIO $ f {failureStdErr = Just err}
 
 -- | Run a `Proc` action, ignoring any `Failure` exceptions.
 -- This can be used to prevent a process from interrupting a whole pipeline.
