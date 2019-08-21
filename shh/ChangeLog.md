@@ -1,5 +1,9 @@
 # Revision history for shh
 
+## 0.7.0.3 -- 2019-08-21
+
+Allow optionally capturing stdout on failure exceptions
+
 ## 0.7.0.1 -- 2019-08-12
 
 Change how we test for library installation.
