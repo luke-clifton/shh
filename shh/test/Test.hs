@@ -39,7 +39,7 @@ main = do
     defaultMain tests
 
 tests :: TestTree
-tests = localOption (Timeout 4000000 "4s") $ testGroup "Tests" [unitTests, properties]
+tests = localOption (Timeout 8000000 "8s") $ testGroup "Tests" [unitTests, properties]
 
 bytesToString :: [Word8] -> ByteString
 bytesToString = BS.pack
