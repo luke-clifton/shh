@@ -76,6 +76,7 @@ module Shh
     , Failure(..)
     , ignoreFailure
     , tryFailure
+    , failWithStdErr
     , exitCode
     -- | == Constructing Arguments
     , Cmd

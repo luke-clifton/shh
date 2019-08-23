@@ -116,7 +116,7 @@ instance Exception Failure
 -- polymorphic in their return value. This makes using them in an `IO` context
 -- easier (we can avoid having to prepend everything with a `runProc`).
 class Shell f where
-    runProc :: Proc a -> f a
+    runProc :: HasCallStack => Proc a -> f a
 
 -- | Helper function that creates and potentially executes a @`Proc`@
 buildProc :: Shell f => (Handle -> Handle -> Handle -> IO a) -> f a
