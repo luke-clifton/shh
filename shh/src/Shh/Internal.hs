@@ -442,7 +442,7 @@ mkProc' delegate cmd args = Proc $ \i o e -> do
             }
         )
         (\(_,_,_,ph) -> terminateProcess ph)
-        $ \(_,_,_,ph) -> waitProc cmd args ph `onException` terminateProcess ph
+        $ \(_,_,_,ph) -> waitProc cmd args ph `onException` (terminateProcess ph >> waitForProcess ph)
 
 -- | Create a `Proc` from a command and a list of arguments. Does not delegate
 -- control-c handling.
