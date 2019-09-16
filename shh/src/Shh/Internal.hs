@@ -237,7 +237,6 @@ nativeProc f = runProc $ Proc $ \i o e -> handle handler $ do
             | ioeGetErrorType e == ResourceVanished = pure (throw e)
             | otherwise = throwIO e
 
-
 -- | Flipped version of `|>` with lower precedence.
 --
 -- >>> captureTrim <| (echo "Hello" |> wc "-c")
@@ -441,7 +440,7 @@ mkProc' delegate cmd args = Proc $ \i o e -> do
             , delegate_ctlc = delegate
             }
         )
-        (\(_,_,_,ph) -> terminateProcess ph)
+        (\(_,_,_,ph) -> terminateProcess ph >> waitForProcess ph)
         $ \(_,_,_,ph) -> waitProc cmd args ph `onException` (terminateProcess ph >> waitForProcess ph)
 
 -- | Create a `Proc` from a command and a list of arguments. Does not delegate
