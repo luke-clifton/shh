@@ -9,7 +9,7 @@ a=$(git rev-parse HEAD)
 ```
 
 ```haskell
-a <- readTrim $ git "rev-parse" "HEAD"
+a <- captureTrim <| git "rev-parse" "HEAD"
 ```
 
 ## Piping
