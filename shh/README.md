@@ -5,7 +5,7 @@
 [![](https://builds.sr.ht/~lukec/shh/nix.yml.svg)](https://builds.sr.ht/~lukec/shh/nix.yml?)
 
 <details><summary>
-Shh is a library to enable convinient shell-like programming in Haskell.
+Shh is a library to enable convenient shell-like programming in Haskell.
 It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 </summary>
 
@@ -52,7 +52,7 @@ It supports
    using template Haskell, as well as a runtime check to ensure they all
    exist on startup.
 
- * Redirction of stdout and stderr
+ * Redirection of stdout and stderr
        
    ```haskell
      -- Redirect stdout
@@ -77,7 +77,7 @@ It supports
      (echo 1 >> echo 2) |> cat
    ```
 
- * Use of Haskells concurrency primitives.
+ * Use of Haskell's concurrency primitives.
 
    ```haskell
      race (sleep 1 >> echo "Slept for 1") (sleep 2 >> echo "Slept for 2")
@@ -185,10 +185,13 @@ Enable Template Haskell and load the environment
     {-# LANGUAGE TemplateHaskell #-}
     $(loadEnv SearchPath)
 
-You now have all your executables available as simple to read
-Haskell functions.
+You now have all your executables available as simple to read Haskell
+functions. This may render the namespace unwieldy. Executables may be loaded
+explicitly using instead `load ShellPath`, such as
 
-If you want to check that all the dependenies still exist, you can use
+    load SearchPath ["echo", "grep", "cat", "ls"]
+
+If you want to check that all the dependencies still exist, you can use
 `missingExecutables :: IO [String]`, which will tell you if anything is
 missing.
 
