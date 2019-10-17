@@ -180,9 +180,11 @@ explicit, and thus always more verbose than most other shells.
 
 ## Usage
 
-Enable Template Haskell and load the environment
+Enable Template Haskell and load the environment. It is also strongly
+recommended to use `ExtendedDefaultRules`.
 
     {-# LANGUAGE TemplateHaskell #-}
+    {-# LANGUAGE ExtendedDefaultRules #-}
     $(loadEnv SearchPath)
 
 You now have all your executables available as simple to read Haskell
