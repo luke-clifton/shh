@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -836,8 +837,7 @@ endBy s str =
         dropLastNull :: [ByteString] -> [ByteString]
         dropLastNull []   = []
         dropLastNull [""] = []
-        dropLastNull [a]  = [a]
-        dropLastNull (a:as) = a : dropLastNull as
+        dropLastNull (a : as) = a : dropLastNull as
 
 -- | Load executables from the given directories
 loadFromDirs :: [FilePath] -> Q [Dec]
