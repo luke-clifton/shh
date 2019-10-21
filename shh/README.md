@@ -181,7 +181,8 @@ explicit, and thus always more verbose than most other shells.
 ## Usage
 
 Enable Template Haskell and load the environment. It is also strongly
-recommended to use `ExtendedDefaultRules`.
+recommended to use `ExtendedDefaultRules`. This is especially important
+if you want to use `OverloadedStrings`.
 
     {-# LANGUAGE TemplateHaskell #-}
     {-# LANGUAGE ExtendedDefaultRules #-}
