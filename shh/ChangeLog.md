@@ -1,5 +1,11 @@
 # Revision history for shh
 
+## 0.7.0.8 -- 2020-05-28
+
+* Flush std buffers before executing a process to make interaction
+  with Haskells standard IO system more predictable.
+* Various bug fixes
+
 ## 0.7.0.3 -- 2019-08-21
 
 Allow optionally capturing stdout on failure exceptions
