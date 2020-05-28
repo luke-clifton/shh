@@ -416,6 +416,10 @@ instance Shell Proc where
 -- so we ignore that corner case (see `hDup`).
 runProc' :: Handle -> Handle -> Handle -> Proc a -> IO a
 runProc' i o e (Proc f) = do
+    -- Flush stdout and stderr so that sequencing commands with
+    -- Haskell IO functions looks right.
+    hFlush stdout
+    hFlush stderr
     r <- f i o e
     -- Evaluate to WHNF to uncover any ResourceVanished exceptions
     -- that may be hiding in there from `nativeProc`. These should
