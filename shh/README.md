@@ -2,7 +2,7 @@
 
 [![](https://img.shields.io/hackage/v/shh.svg?colorB=%23999&label=shh)](http://hackage.haskell.org/package/shh)
 [![](https://img.shields.io/hackage/v/shh-extras.svg?colorB=%23999&label=shh-extras)](http://hackage.haskell.org/package/shh-extras)
-[![](https://builds.sr.ht/~lukec/shh/nix.yml.svg)](https://builds.sr.ht/~lukec/shh/nix.yml?)
+[![](https://builds.sr.ht/~lukec/shh/nix.yml.svg)](https://builds.sr.ht/~lukec/shh/commits/nix.yml)
 
 <details><summary>
 Shh is a library to enable convenient shell-like programming in Haskell.
