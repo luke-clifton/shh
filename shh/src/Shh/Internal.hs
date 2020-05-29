@@ -543,6 +543,32 @@ trim = dropWhileEnd isSpace . BC8.dropWhile isSpace
 tryFailure :: Shell m => Proc a -> m (Either Failure a)
 tryFailure (Proc f) = buildProc $ \i o e -> try $ f i o e
 
+-- | Like @`tryFailure`@ except that it takes an exception predicate which
+-- selects which exceptions to catch. Any exception not matching the predicate
+-- (returning @Nothing@) is re-thrown.
+tryFailureJust :: Shell m => (Failure -> Maybe b) -> Proc a -> m (Either b a)
+tryFailureJust pr (Proc f) = buildProc $ \i o e -> tryJust pr (f i o e)
+
+-- | Run a `Proc` with an action to take if an exception is thrown.
+catchFailure :: Shell m => Proc a -> (Failure -> Proc a) -> m a
+catchFailure (Proc f) pr = buildProc $ \i o e -> catch (f i o e) (runProc . pr)
+
+-- | Like @`catchFailureJust`@ except that it takes an exception predicate
+-- which selects which exceptions to catch. Any exceptions not matching the
+-- predicate (returning @Nothing@) are re-thrown.
+catchFailureJust :: Shell m => (Failure -> Maybe b) -> Proc a -> (b -> Proc a) -> m a
+catchFailureJust pr (Proc f) h = buildProc $ \i o e -> catchJust pr (f i o e) (runProc . h)
+
+-- | Apply a function that translates non-0 exit codes to results. Any code
+-- that returns a @Nothing@ will be thrown as a @`Failure`@.
+translateCode' :: Shell m => (Int -> Maybe b) -> Proc a -> m (Either b a)
+translateCode' f p = tryFailureJust (f . failureCode) p
+
+-- | Apply a function to non-0 exit codes to extract a result. If @Nothing@
+-- is produced, the @`Failure`@ is thrown.
+translateCode :: Shell m => (Int -> Maybe a) -> Proc a -> m a
+translateCode f p = catchFailureJust (f . failureCode) p pure
+
 -- | Capture the stderr of the proc, and attach it to any @`Failure`@
 -- exceptions that are thrown. The stderr is also forwarded to downstream
 -- processes, or the inherited stderr handle. Note that capturing stderr
@@ -580,6 +606,17 @@ exitCode = fmap getCode . tryFailure
     where
         getCode (Right _) = 0
         getCode (Left  f) = failureCode f
+
+-- | Run the @`Proc`@, but don't throw an exception if it exits with the
+-- given code. Note, that from this point on, if the proc did fail with the
+-- code, everything else now sees it as having exited with 0. If you need
+-- to know the code, you have to use `exitCode`.
+ignoreCode :: (Monad m, Shell m) => Int -> Proc a -> m ()
+ignoreCode code p = catchFailureJust pr (void p) pure
+    where
+        pr f
+            | failureCode f == code = Just ()
+            | otherwise             = Nothing
 
 -- | A class for things that can be converted to arguments on the command
 -- line. The default implementation is to use `show`.

@@ -75,9 +75,15 @@ module Shh
     -- to how a shell normally works (even with @-o pipefail@!).
     , Failure(..)
     , ignoreFailure
+    , ignoreCode
     , tryFailure
+    , tryFailureJust
+    , catchFailure
+    , catchFailureJust
     , failWithStdErr
     , exitCode
+    , translateCode
+    , translateCode'
     -- | == Constructing Arguments
     , Cmd
     , ExecArg(..)
