@@ -191,15 +191,20 @@ if you want to use `OverloadedStrings`.
     {-# LANGUAGE ExtendedDefaultRules #-}
     $(loadEnv SearchPath)
 
-You now have all your executables available as simple to read Haskell
-functions. This may render the namespace unwieldy. Executables may be loaded
-explicitly using instead `load ShellPath`, such as
+You now have all your executables available as simple to Haskell
+functions. If you don't want to load your entire environment you
+can load specific commands directly:
 
     load SearchPath ["echo", "grep", "cat", "ls"]
 
 If you want to check that all the dependencies still exist, you can use
 `missingExecutables :: IO [String]`, which will tell you if anything is
 missing.
+
+For use in a project, it makes sense to have a dedicated module for your
+project which does the template Haskell above. This will prevent recompilation
+of all the executables, and also allow you to easily namespace them to
+avoid collisions with normal Haskell functions.
 
 ### Usage in GHCi
 
