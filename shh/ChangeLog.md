@@ -1,5 +1,10 @@
 # Revision history for shh
 
+## 0.7.1.0 -- 2020-09-05
+
+* Assume UTF-8 encoding in places. This is a temporary workaroun until we
+  can remove all encoding assumptions.
+
 ## 0.7.0.8 -- 2020-05-28
 
 * Flush std buffers before executing a process to make interaction
