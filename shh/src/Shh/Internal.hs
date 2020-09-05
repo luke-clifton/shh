@@ -101,7 +101,7 @@ instance Show Failure where
     show f = concat $
         [ "Command `"
         ]
-        ++ [intercalate " " (BC8.unpack (failureProg f) : map show (failureArgs f))]
+        ++ [intercalate " " (toString (failureProg f) : map show (failureArgs f))]
         ++
         [ "` failed [exit "
         , show (failureCode f)
@@ -109,7 +109,7 @@ instance Show Failure where
         , prettyCallStack (failureStack f)
         ]
         ++ flip (maybe []) (failureStdErr f) (\s ->
-           ["\n-- stderr --\n" ++ BC8.unpack s])
+           ["\n-- stderr --\n" ++ toString s])
 
 instance Exception Failure
 
@@ -195,9 +195,9 @@ infixl 1 |!>
 p &> StdOut = runProc p
 (Proc f) &> StdErr = buildProc $ \i _ e -> f i e e
 (Proc f) &> (Truncate path) = buildProc $ \i _ e ->
-    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i h e
+    withBinaryFile (toString path) WriteMode $ \h -> f i h e
 (Proc f) &> (Append path) = buildProc $ \i _ e ->
-    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i h e
+    withBinaryFile (toString path) AppendMode $ \h -> f i h e
 infixl 9 &>
 
 -- | Redirect stderr of this process to another location
@@ -208,9 +208,9 @@ infixl 9 &>
 p &!> StdErr = runProc $ p
 (Proc f) &!> StdOut = buildProc $ \i o _ -> f i o o
 (Proc f) &!> (Truncate path) = buildProc $ \i o _ ->
-    withBinaryFile (BC8.unpack path) WriteMode $ \h -> f i o h
+    withBinaryFile (toString path) WriteMode $ \h -> f i o h
 (Proc f) &!> (Append path) = buildProc $ \i o _ ->
-    withBinaryFile (BC8.unpack path) AppendMode $ \h -> f i o h
+    withBinaryFile (toString path) AppendMode $ \h -> f i o h
 infixl 9 &!>
 
 -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
@@ -434,8 +434,8 @@ runProc' i o e (Proc f) = do
 mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
 mkProc' delegate cmd args = Proc $ \i o e -> do
     let
-        cmd' = BC8.unpack cmd
-        args' = BC8.unpack <$> args
+        cmd' = toString cmd
+        args' = toString <$> args
     bracket
         (createProcess_ cmd' (proc cmd' args')
             { std_in = UseHandle i
