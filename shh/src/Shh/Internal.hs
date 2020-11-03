@@ -478,11 +478,11 @@ captureTrim = readInput (pure . trim)
 captureEndBy :: Shell io => ByteString -> io [ByteString]
 captureEndBy s = readInput (pure . endBy s)
 
--- | Same as @'captureEndBy' "\0"@.
+-- | Same as @'captureEndBy' "\\0"@.
 captureEndBy0 :: Shell io => io [ByteString]
 captureEndBy0 = captureEndBy "\0"
 
--- | Same as @'captureSplit' "\n"@.
+-- | Same as @'captureSplit' "\\n"@.
 captureLines :: Shell io => io [ByteString]
 captureLines = captureEndBy "\n"
 
