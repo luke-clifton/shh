@@ -148,7 +148,7 @@ pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
 
 
 -- | Use this to send the output of on process into the input of another.
--- This is just like a shells `|` operator.
+-- This is just like a shell's `|` operator.
 --
 -- The result is polymorphic in its output, and can result in either
 -- another `Proc a` or an `IO a` depending on the context in which it is
