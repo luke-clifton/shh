@@ -191,7 +191,8 @@ infixl 1 |!>
 
 -- | Things that can be converted to a @`FilePath`@.
 --
--- The results must use the file system encoding.
+-- The results must use the file system encoding. Use this
+-- if you want to pass a @ByteString@ to @`System.IO.openFile`@.
 class ToFilePath a where
     toFilePath :: a -> IO FilePath
 
