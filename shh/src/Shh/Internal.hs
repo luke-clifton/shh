@@ -27,12 +27,13 @@ import Control.Exception as C
 import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.ByteString as ByteString
-import Data.ByteString.Lazy (ByteString, hGetContents, toStrict)
+import qualified Data.ByteString.Unsafe as ByteString
+import Data.ByteString.Lazy (ByteString, hGetContents, toStrict, fromStrict)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.Builder.ASCII
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.Lazy.Search as Search
-import Data.ByteString.Lazy.UTF8 (fromString, toString)
+import Data.ByteString.Lazy.UTF8 (toString)
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import Data.List (intercalate)
 import qualified Data.List.Split as Split
@@ -42,7 +43,7 @@ import Data.Typeable
 import GHC.IO.BufferedIO
 import GHC.IO.Device as IODevice hiding (read)
 import GHC.IO.Encoding
-import GHC.Foreign (peekCStringLen)
+import GHC.Foreign (peekCStringLen, newCStringLen)
 import GHC.IO.Exception (IOErrorType(ResourceVanished))
 import GHC.IO.Handle hiding (hGetContents)
 import GHC.IO.Handle.Internals
@@ -55,6 +56,7 @@ import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
 import System.FilePath (takeFileName, (</>))
 import System.IO (IOMode(..), withFile, withBinaryFile, stderr, stdout, stdin)
+import System.IO.Unsafe (unsafePerformIO)
 import System.IO.Error
 import System.Posix.Signals
 import System.Process
@@ -192,20 +194,30 @@ infixl 1 |!>
 -- | Things that can be converted to a @`FilePath`@.
 --
 -- The results must use the file system encoding. Use this
--- if you want to pass a @ByteString@ to @`System.IO.openFile`@.
+-- if you want to pass a @ByteString@ to @`System.IO.openFile`@,
+-- or if you want to turn a @FilePath@ into a @ByteString@.
+--
+-- If you never change the file system encoding, it should be safe to use
+-- @`unsafePerformIO`@ on these functions.
 class ToFilePath a where
     toFilePath :: a -> IO FilePath
+    fromFilePath :: FilePath -> IO a
 
 instance ToFilePath FilePath where
     toFilePath = pure
+    fromFilePath = pure
 
 instance ToFilePath ByteString.ByteString where
     toFilePath bs = do
         enc <- getFileSystemEncoding
         ByteString.useAsCStringLen bs (peekCStringLen enc)
+    fromFilePath fp = do
+        enc <- getFileSystemEncoding
+        newCStringLen enc fp >>= ByteString.unsafePackMallocCStringLen
 
 instance ToFilePath ByteString where
     toFilePath = toFilePath . toStrict
+    fromFilePath = fmap fromStrict . fromFilePath
 
 --
 -- | Redirect stdout of this process to another location
@@ -642,23 +654,24 @@ ignoreCode code p = catchFailureJust pr (void p) pure
             | otherwise             = Nothing
 
 -- | A class for things that can be converted to arguments on the command
--- line. The default implementation is to use `show`.
+-- line. The default implementation is to use `show` and then encode it using
+-- the file system encoding.
 class ExecArg a where
     asArg :: a -> [ByteString]
     default asArg :: Show a => a -> [ByteString]
-    asArg a = [fromString $ show a]
+    asArg a = [unsafePerformIO $ fromFilePath $ show a]
 
     -- God, I hate that String is [Char]...
     asArgFromList :: [a] -> [ByteString]
     default asArgFromList :: Show a => [a] -> [ByteString]
     asArgFromList = concatMap asArg
 
--- | The @Char@ and @String@ instances encodes as UTF8
+-- | The @Char@ and @String@ instances encode using the file system encoding.
 instance ExecArg Char where
-    asArg s = [fromString [s]]
-    asArgFromList s = [fromString s]
+    asArg s = [unsafePerformIO $ fromFilePath [s]]
+    asArgFromList s = [unsafePerformIO $ fromFilePath s]
 
--- | The @[Char]@/@String@ instance encodes as UTF8
+-- | The @[Char]@/@String@ instance encodes using the file system encoding.
 instance ExecArg a => ExecArg [a] where
     asArg = asArgFromList
     asArgFromList = concatMap asArg
