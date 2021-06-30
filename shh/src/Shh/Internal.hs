@@ -140,7 +140,6 @@ pipe (Proc a) (Proc b) = buildProc $ \i o e ->
             b' = b r o e `finally` (hClose r)
         concurrently a' b'
 
-
 -- | Like @`pipe`@, but plumbs stderr. See the warning in @`pipe`@.
 pipeErr :: Shell f => Proc a -> Proc b -> f (a, b)
 pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
@@ -169,7 +168,7 @@ pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
 (|>) :: Shell f => Proc a -> Proc b -> f b
 a |> b = runProc $ do
     v <- fmap snd (a `pipe` b)
-    pure $! v
+    pure v
 infixl 1 |>
 
 
@@ -188,7 +187,7 @@ infixl 1 |>
 (|!>) :: Shell f => Proc a -> Proc b -> f b
 a |!> b = runProc $ do
     v <- fmap snd (a `pipeErr` b)
-    pure $! v
+    pure v
 infixl 1 |!>
 
 -- | Things that can be converted to a @`FilePath`@.
