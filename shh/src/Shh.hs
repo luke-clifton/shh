@@ -105,6 +105,8 @@ module Shh
     , pathBinsAbs
     -- | = Builtins
     , cd
+    -- | = Utilities
+    , ToFilePath(..)
     ) where
 
 import Shh.Internal
