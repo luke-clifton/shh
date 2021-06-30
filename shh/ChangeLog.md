@@ -1,5 +1,10 @@
 # Revision history for shh
 
+## 0.7.1.2 -- 2021-06-30
+
+* Remove assumptions introduced in 0.7.1.0 about UTF-8. Arbitrary filenames
+  will now work as they should.
+
 ## 0.7.1.1 -- 2021-06-30
 
 * Changes to work on GHC 9
