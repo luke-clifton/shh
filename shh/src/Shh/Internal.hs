@@ -13,6 +13,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE CPP #-}
 
 -- | See documentation for "Shh".
 module Shh.Internal where
@@ -681,7 +682,7 @@ type Cmd = HasCallStack => forall a. (Command a) => a
 -- >>> displayCommand $ echo "Hello, world!"
 -- ["echo","Hello, world!"]
 displayCommand :: Cmd -> [ByteString]
-displayCommand = toArgs
+displayCommand = \c -> toArgs c
 
 -- | Get all executables on your `$PATH`.
 pathBins :: IO [FilePath]
@@ -1032,7 +1033,11 @@ dupHandleShh filepath h other_side h_@Handle__{..} mb_finalizer = do
 
 -- | Helper function for duplicating a Handle
 dupHandleShh_
+#if __GLASGOW_HASKELL__ < 900
     :: (IODevice dev, BufferedIO dev, Typeable dev) => dev
+#else
+    :: (RawIO dev, IODevice dev, BufferedIO dev, Typeable dev) => dev
+#endif
     -> FilePath
     -> Maybe (MVar Handle__)
     -> Handle__
