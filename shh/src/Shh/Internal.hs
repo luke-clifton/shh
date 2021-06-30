@@ -42,6 +42,7 @@ import Data.Typeable
 import GHC.IO.BufferedIO
 import GHC.IO.Device as IODevice hiding (read)
 import GHC.IO.Encoding
+import GHC.Foreign (peekCStringLen)
 import GHC.IO.Exception (IOErrorType(ResourceVanished))
 import GHC.IO.Handle hiding (hGetContents)
 import GHC.IO.Handle.Internals
@@ -188,6 +189,23 @@ a |!> b = runProc $ do
     pure $! v
 infixl 1 |!>
 
+-- | Things that can be converted to a @`FilePath`@.
+--
+-- The results must use the file system encoding.
+class ToFilePath a where
+    toFilePath :: a -> IO FilePath
+
+instance ToFilePath FilePath where
+    toFilePath = pure
+
+instance ToFilePath ByteString.ByteString where
+    toFilePath bs = do
+        enc <- getFileSystemEncoding
+        ByteString.useAsCStringLen bs (peekCStringLen enc)
+
+instance ToFilePath ByteString where
+    toFilePath = toFilePath . toStrict
+
 --
 -- | Redirect stdout of this process to another location
 --
@@ -195,10 +213,12 @@ infixl 1 |!>
 (&>) :: Shell f => Proc a -> Stream -> f a
 p &> StdOut = runProc p
 (Proc f) &> StdErr = buildProc $ \i _ e -> f i e e
-(Proc f) &> (Truncate path) = buildProc $ \i _ e ->
-    withBinaryFile (toString path) WriteMode $ \h -> f i h e
-(Proc f) &> (Append path) = buildProc $ \i _ e ->
-    withBinaryFile (toString path) AppendMode $ \h -> f i h e
+(Proc f) &> (Truncate path) = buildProc $ \i _ e -> do
+    path' <- toFilePath path
+    withBinaryFile path' WriteMode $ \h -> f i h e
+(Proc f) &> (Append path) = buildProc $ \i _ e -> do
+    path' <- toFilePath path
+    withBinaryFile path' AppendMode $ \h -> f i h e
 infixl 9 &>
 
 -- | Redirect stderr of this process to another location
@@ -208,10 +228,12 @@ infixl 9 &>
 (&!>) :: Shell f => Proc a -> Stream -> f a
 p &!> StdErr = runProc $ p
 (Proc f) &!> StdOut = buildProc $ \i o _ -> f i o o
-(Proc f) &!> (Truncate path) = buildProc $ \i o _ ->
-    withBinaryFile (toString path) WriteMode $ \h -> f i o h
-(Proc f) &!> (Append path) = buildProc $ \i o _ ->
-    withBinaryFile (toString path) AppendMode $ \h -> f i o h
+(Proc f) &!> (Truncate path) = buildProc $ \i o _ -> do
+    path' <- toFilePath path
+    withBinaryFile path' WriteMode $ \h -> f i o h
+(Proc f) &!> (Append path) = buildProc $ \i o _ -> do
+    path' <- toFilePath path
+    withBinaryFile path' AppendMode $ \h -> f i o h
 infixl 9 &!>
 
 -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
@@ -434,9 +456,8 @@ runProc' i o e (Proc f) = do
 -- or not. Most uses of @`mkProc'`@ in Shh do not delegate control-c.
 mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
 mkProc' delegate cmd args = Proc $ \i o e -> do
-    let
-        cmd' = toString cmd
-        args' = toString <$> args
+    cmd' <- toFilePath cmd
+    args' <- mapM toFilePath args
     bracket
         (createProcess_ cmd' (proc cmd' args')
             { std_in = UseHandle i
