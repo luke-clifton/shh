@@ -1,5 +1,10 @@
 # Revision history for shh
 
+## 0.7.1.4 -- 2021-06-30
+
+* Fix a bug where `|>` was too strict, causing SIGPIPE
+  to be triggered (ResourceVanished).
+
 ## 0.7.1.3 -- 2021-06-30
 
 * Expose the ToFilePath class.

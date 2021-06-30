@@ -121,6 +121,9 @@ unitTests = testGroup "Unit tests"
     , testCase "Long pipe" $ do
         r <- echo "test" |> tr "-d" "e" |> tr "-d" "s" |> capture
         r @?= "tt\n"
+    , testCase "SIGPIPE nativeProc" $ do
+        r <- pureProc (\_ -> BS.cycle "y\n") |> pureProc (\_ -> BS.cycle "y\n") |> exitCode (exe "true")
+        r @?= 0
     , testCase "Pipe stderr" $ replicateM_ 100 $ do
         r <- echo "test" &> StdErr |!> cat |> capture
         r @?= "test\n"
