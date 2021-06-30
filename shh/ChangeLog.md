@@ -1,8 +1,12 @@
 # Revision history for shh
 
+## 0.7.1.1 -- 2021-06-30
+
+* Changes to work on GHC 9
+
 ## 0.7.1.0 -- 2020-09-05
 
-* Assume UTF-8 encoding in places. This is a temporary workaroun until we
+* Assume UTF-8 encoding in places. This is a temporary workaround until we
   can remove all encoding assumptions.
 
 ## 0.7.0.8 -- 2020-05-28
