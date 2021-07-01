@@ -136,8 +136,8 @@ pipe :: Shell f => Proc a -> Proc b -> f (a, b)
 pipe (Proc a) (Proc b) = buildProc $ \i o e ->
     withPipe $ \r w -> do
         let
-            a' = a i w e `finally` (hClose w)
-            b' = b r o e `finally` (hClose r)
+            a' = a i w e `finally` hClose w
+            b' = b r o e `finally` hClose r
         concurrently a' b'
 
 -- | Like @`pipe`@, but plumbs stderr. See the warning in @`pipe`@.
@@ -145,8 +145,8 @@ pipeErr :: Shell f => Proc a -> Proc b -> f (a, b)
 pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
     withPipe $ \r w -> do
         let
-            a' = a i o w `finally` (hClose w)
-            b' = b r o e `finally` (hClose r)
+            a' = a i o w `finally` hClose w
+            b' = b r o e `finally` hClose r
         concurrently a' b'
 
 
@@ -166,9 +166,7 @@ pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
 -- >>> echo "Hello" |> wc
 --       1       1       6
 (|>) :: Shell f => Proc a -> Proc b -> f b
-a |> b = runProc $ do
-    v <- fmap snd (a `pipe` b)
-    pure v
+a |> b = runProc $ fmap snd (a `pipe` b)
 infixl 1 |>
 
 
@@ -185,9 +183,7 @@ infixl 1 |>
 -- Ignored
 -- 0
 (|!>) :: Shell f => Proc a -> Proc b -> f b
-a |!> b = runProc $ do
-    v <- fmap snd (a `pipeErr` b)
-    pure v
+a |!> b = runProc $ fmap snd (a `pipeErr` b)
 infixl 1 |!>
 
 -- | Things that can be converted to a @`FilePath`@.
@@ -238,7 +234,7 @@ infixl 9 &>
 -- >>> echo "Shh" &!> StdOut
 -- Shh
 (&!>) :: Shell f => Proc a -> Stream -> f a
-p &!> StdErr = runProc $ p
+p &!> StdErr = runProc p
 (Proc f) &!> StdOut = buildProc $ \i o _ -> f i o o
 (Proc f) &!> (Truncate path) = buildProc $ \i o _ -> do
     path' <- toFilePath path
@@ -256,9 +252,9 @@ nativeProc f = runProc $ Proc $ \i o e -> handle handler $ do
     -- real ones.
     withDuplicates i o e $ \i' o' e' -> do
         (f i' o' e' >>= C.evaluate . force)
-            `finally` (hClose i')
-            `finally` (hClose o')
-            `finally` (hClose e')
+            `finally` hClose i'
+            `finally` hClose o'
+            `finally` hClose e'
 
     where
         -- The resource vanished error only occurs when upstream pipe closes.
@@ -429,8 +425,7 @@ instance Applicative Proc where
 
     f <*> a = do
         f' <- f
-        a' <- a
-        pure (f' a')
+        f' <$> a
         
 instance Monad Proc where
     (Proc a) >>= f = buildProc $ \i o e -> do
@@ -596,7 +591,7 @@ catchFailureJust pr (Proc f) h = buildProc $ \i o e -> catchJust pr (f i o e) (r
 -- | Apply a function that translates non-0 exit codes to results. Any code
 -- that returns a @Nothing@ will be thrown as a @`Failure`@.
 translateCode' :: Shell m => (Int -> Maybe b) -> Proc a -> m (Either b a)
-translateCode' f p = tryFailureJust (f . failureCode) p
+translateCode' f = tryFailureJust (f . failureCode)
 
 -- | Apply a function to non-0 exit codes to extract a result. If @Nothing@
 -- is produced, the @`Failure`@ is thrown.
@@ -777,13 +772,13 @@ data ExecReference
 rawExe :: String -> String -> Q [Dec]
 rawExe fnName executable = do
     let
-        name = mkName $ fnName
+        name = mkName fnName
         impl = valD (varP name) (normalB [|
             withFrozenCallStack $ exe executable
             |]) []
         typ = SigD name (ConT ''Cmd)
     i <- impl
-    return $ [typ,i]
+    return [typ,i]
 
 -- | @$(loadExeAs ref fnName executable)@ defines a function called @fnName@
 -- which executes the path in @executable@. If @executable@ is an absolute path
@@ -873,7 +868,7 @@ load ref = loadAnnotated ref encodeIdentifier
 loadAnnotated :: ExecReference -> (String -> String) -> [FilePath] -> Q [Dec]
 loadAnnotated ref f bins = do
     let pairs = zip (map f bins) bins
-    ds <- fmap join $ mapM (uncurry (loadExeAs ref)) pairs
+    ds <- join <$> mapM (uncurry (loadExeAs ref)) pairs
     d <- valD (varP (mkName "missingExecutables")) (normalB [|
                 filterM (fmap not . checkExecutable) bins
             |]) []
@@ -1007,7 +1002,7 @@ withNullInput = withFile "/dev/null" ReadMode
 
 -- | Bracket a @`hDup`@
 withDuplicate :: Handle -> (Handle -> IO a) -> IO a
-withDuplicate h f = bracket (hDup h) hClose f
+withDuplicate h = bracket (hDup h) hClose
 
 -- | Bracket three @`hDup`@s
 withDuplicates :: Handle -> Handle -> Handle -> (Handle -> Handle -> Handle -> IO a) -> IO a
