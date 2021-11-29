@@ -35,7 +35,12 @@ main = do
     putStrLn " failures, please check that it's not because"
     putStrLn " they are missing."
     putStrLn "################################################"
-    doctest ["--fast", "-isrc", "src/Shh/Internal.hs"]
+    doctest ["--fast", "-isrc", "src/Shh/Internal.hs"
+            , "-package", "async"
+            , "-package", "stringsearch"
+            , "-package", "utf8-string"
+            , "-package", "split"
+            ]
     defaultMain tests
 
 tests :: TestTree
