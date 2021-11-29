@@ -465,6 +465,7 @@ runProc' i o e (Proc f) = do
 mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
 mkProc' delegate = mkProcWith defaultProcOptions { delegateCtlc = delegate }
 
+-- | Options for making processes.
 data ProcOptions = ProcOptions
     { delegateCtlc :: Bool -- ^ Delegate control-c handling to the child.
     , closeFds     :: Bool -- ^ Close file descriptors before @exec@ing.
