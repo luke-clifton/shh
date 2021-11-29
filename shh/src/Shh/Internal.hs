@@ -30,7 +30,7 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Unsafe as ByteString
 import Data.ByteString.Lazy (ByteString, hGetContents, toStrict, fromStrict)
 import qualified Data.ByteString.Lazy as BS
-import Data.ByteString.Lazy.Builder.ASCII
+import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.Lazy.Search as Search
 import Data.ByteString.Lazy.UTF8 (toString)
