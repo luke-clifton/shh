@@ -461,8 +461,25 @@ runProc' i o e (Proc f) = do
 -- | Create a `Proc` from a command and a list of arguments.
 -- The boolean represents whether we should delegate control-c
 -- or not. Most uses of @`mkProc'`@ in Shh do not delegate control-c.
+{-# DEPRECATED mkProc' "Use mkProcWith instead" #-}
 mkProc' :: HasCallStack => Bool -> ByteString -> [ByteString] -> Proc ()
-mkProc' delegate cmd args = Proc $ \i o e -> do
+mkProc' delegate = mkProcWith defaultProcOptions { delegateCtlc = delegate }
+
+data ProcOptions = ProcOptions
+    { delegateCtlc :: Bool -- ^ Delegate control-c handling to the child.
+    , closeFds     :: Bool -- ^ Close file descriptors before @exec@ing.
+    }
+
+-- | Default ProcOptions as used by most of this library.
+defaultProcOptions :: ProcOptions
+defaultProcOptions = ProcOptions
+    { delegateCtlc = True
+    , closeFds     = True
+    }
+
+-- | Create a `Proc` with custom options.
+mkProcWith :: HasCallStack => ProcOptions -> ByteString -> [ByteString] -> Proc ()
+mkProcWith options cmd args = Proc $ \i o e -> do
     cmd' <- toFilePath cmd
     args' <- mapM toFilePath args
     bracket
@@ -470,8 +487,8 @@ mkProc' delegate cmd args = Proc $ \i o e -> do
             { std_in = UseHandle i
             , std_out = UseHandle o
             , std_err = UseHandle e
-            , close_fds = True
-            , delegate_ctlc = delegate
+            , close_fds = closeFds options
+            , delegate_ctlc = delegateCtlc options
             }
         )
         (\(_,_,_,ph) -> terminateProcess ph >> waitForProcess ph)
@@ -480,7 +497,7 @@ mkProc' delegate cmd args = Proc $ \i o e -> do
 -- | Create a `Proc` from a command and a list of arguments. Does not delegate
 -- control-c handling.
 mkProc :: HasCallStack => ByteString -> [ByteString] -> Proc ()
-mkProc = mkProc' False
+mkProc = mkProcWith defaultProcOptions
 
 -- | A special `Proc` which captures its stdin and presents it as a `ByteString`
 -- to Haskell.

@@ -14,6 +14,11 @@ module Shh
     -- to create these.
     , exe
     , mkProc
+    , mkProcWith
+    , ProcOptions()
+    , defaultProcOptions
+    , delegateCtlc
+    , closeFds
     , mkProc'
     , Proc()
     -- | === "Native" Processes (Lazy)
