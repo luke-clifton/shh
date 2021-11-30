@@ -11,9 +11,15 @@ author:              Luke Clifton
 maintainer:          lukec@themk.net
 copyright:           (c) 2018 - 2021 Luke Clifton
 category:            System
-build-type:          Simple
+build-type:          Custom
 extra-source-files:  ChangeLog.md, README.md
 cabal-version:       >=1.10
+
+custom-setup
+  setup-depends:
+      base
+    , Cabal
+    , cabal-doctest  >=1.0.9 && <1.1
 
 source-repository head
   type: git
@@ -87,3 +93,4 @@ test-suite shh-tests
   main-is: Test.hs
   other-modules: Readme
   type: exitcode-stdio-1.0
+  other-modules: Build_doctests

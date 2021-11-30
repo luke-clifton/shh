@@ -1,2 +1,2 @@
-import Distribution.Simple
-main = defaultMain
+import Distribution.Extra.Doctest
+main = defaultMainWithDoctests "shh-tests"

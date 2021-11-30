@@ -20,7 +20,9 @@ import Data.Word
 import Control.Concurrent.Async
 import System.FilePath (takeFileName)
 import System.IO
+import System.Environment
 
+import Build_doctests (flags, pkgs, module_sources)
 import Readme
 
 load SearchPath
@@ -35,12 +37,8 @@ main = do
     putStrLn " failures, please check that it's not because"
     putStrLn " they are missing."
     putStrLn "################################################"
-    doctest ["--fast", "-isrc", "src/Shh/Internal.hs"
-            , "-package", "async"
-            , "-package", "stringsearch"
-            , "-package", "utf8-string"
-            , "-package", "split"
-            ]
+    unsetEnv "GHC_ENVIRONMENT"
+    doctest $ flags ++ pkgs ++ module_sources
     defaultMain tests
 
 tests :: TestTree
