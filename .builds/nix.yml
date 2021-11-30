@@ -3,15 +3,16 @@ repositories:
   nixpkgs: https://nixos.org/channels/nixos-21.05-small
 packages:
   - nixpkgs.haskellPackages.cabal-install
+  - nixpkgs.haskell.compiler.ghc8104
 sources:
   - https://github.com/luke-clifton/shh
 tasks:
 - build: |
     cd shh
-    nix-shell --command "cabal new-build all"
+    cabal new-build all
 - test: |
     cd shh
-    nix-shell --command "cabal new-test all"
+    cabal new-test all
 - docs: |
     cd shh
-    nix-shell --command "cabal new-haddock all"
+    cabal new-haddock all
