@@ -1,6 +1,6 @@
 image: nixos/latest
 repositories:
-  nixpkgs: https://nixos.org/channels/nixos-21.05-small
+  nixpkgs: https://nixos.org/channels/nixos-unstable
 sources:
   - https://github.com/luke-clifton/shh
 tasks:

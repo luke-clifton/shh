@@ -1,0 +1,38 @@
+image: debian/stable
+packages:
+- build-essential
+- curl
+- libffi-dev
+- libffi7
+- libgmp-dev
+- libgmp10
+- libncurses-dev
+- libncurses5
+- libtinfo5
+sources:
+  - https://github.com/luke-clifton/shh
+environment:
+  LANG: C.UTF-8
+  VERSIONS:
+  - 8.8.4
+  - 8.10.7
+  - 9.0.1
+tasks:
+- install: |
+    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+    source ~/.ghcup/env
+    ghcup install cabal
+    cabal update
+    ghcup list -t ghc -r
+- build: |
+    source ~/.ghcup/env
+    cd shh
+    echo "Checking ${VERSIONS[@]}"
+    for VERSION in "${VERSIONS[@]}"
+    do
+        echo "Testing version: $VERSION"
+        ghcup install ghc "$VERSION"
+        ghcup set ghc "$VERSION"
+        cabal configure --enable-tests
+        cabal test all
+    done
