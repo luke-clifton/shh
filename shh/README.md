@@ -13,10 +13,12 @@ It works well in scripts, and from GHCi, allowing you to use GHCi as a shell.
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Readme (test) where
 
 import Shh
 
+import System.Environment
 import Control.Concurrent.Async
 import Prelude hiding (head)
 import Test.Tasty
@@ -185,8 +187,11 @@ String interpolation, much like globbing, is left to an external library.
 I lightweight, zero-dependency solution is to use [PyF](https://hackage.haskell.org/package/PyF),
 which, since 0.10.0.1, has no dependencies other than ones included with GHC.
 
+```haskell
+greet =  do
     user <- getEnv "USER"
-    ecsdho [fmt|Hello, {user}!|]
+    echo [fmt|Hello, {user}!|]
+```
 
 ## Usage
 
