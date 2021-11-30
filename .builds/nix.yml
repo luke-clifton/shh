@@ -1,9 +1,32 @@
+---
 image: nixos/latest
 repositories:
   nixpkgs: https://nixos.org/channels/nixos-21.05-small
 packages:
   - nixpkgs.haskellPackages.cabal-install
   - nixpkgs.haskell.compiler.ghc8104
+sources:
+  - https://github.com/luke-clifton/shh
+tasks:
+- build: |
+    cabal update
+    cd shh
+    cabal new-build all
+- test: |
+    cd shh
+    cabal new-test all
+- docs: |
+    cd shh
+    cabal new-haddock all
+
+---
+
+image: nixos/latest
+repositories:
+  nixpkgs: https://nixos.org/channels/nixos-21.05-small
+packages:
+  - nixpkgs.haskellPackages.cabal-install
+  - nixpkgs.haskell.compiler.ghc8101
 sources:
   - https://github.com/luke-clifton/shh
 tasks:
