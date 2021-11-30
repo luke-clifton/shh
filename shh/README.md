@@ -26,6 +26,7 @@ import qualified System.Directory
 import qualified Data.ByteString.Lazy.Char8 as Char8
 import Data.List (nub)
 import Data.Char
+import PyF
 
 load SearchPath ["echo", "base64", "cat", "head", "sleep", "mktemp", "ls", "wc", "find", "tr", "users", "sha256sum", "false", "true"]
 
@@ -177,6 +178,15 @@ Certainly more verbose than the Bash equivalent, however, also more explicit,
 which is probably a good thing. If this turns out to be too cumbersome, we
 might introduce a more succinct globbing feature, though it will always be
 explicit, and thus always more verbose than most other shells.
+
+## String Interpolation/Expansion/Substitution
+
+String interpolation, much like globbing, is left to an external library.
+I lightweight, zero-dependency solution is to use [PyF](https://hackage.haskell.org/package/PyF),
+which, since 0.10.0.1, has no dependencies other than ones included with GHC.
+
+    user <- getEnv "USER"
+    ecsdho [fmt|Hello, {user}!|]
 
 ## Usage
 

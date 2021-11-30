@@ -178,7 +178,7 @@ let a = example
 echo (a ++ ".com")
 ```
 
-NB: Or look at libraries like [interpolate](http://hackage.haskell.org/package/interpolate/docs/Data-String-Interpolate.html)
+NB: Or look at libraries like [PyF](https://hackage.haskell.org/package/PyF) or [interpolate](http://hackage.haskell.org/package/interpolate/docs/Data-String-Interpolate.html)
 
 ```haskell
 let a = example
@@ -263,6 +263,12 @@ cat <<<"\
 \A here doc is here in the script, and\n\
 \can span multiple lines.\n\
 \"
+
+-- Or, using PyF
+cat <<< [strTrim|
+    A here doc is here in the script, and
+    can span multiple lines.
+|]
 
 -- Or, using an interpolation quasi-quoter library
 cat <<< [r|
