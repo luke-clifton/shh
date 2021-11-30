@@ -8,6 +8,7 @@ sources:
   - https://github.com/luke-clifton/shh
 tasks:
 - build: |
+    cabal update
     cd shh
     cabal new-build all
 - test: |
