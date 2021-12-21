@@ -238,7 +238,7 @@ To install it, one option is to use `cabal new-install`
 
 ```bash
 cabal new-install --lib shh
-cabal new-install --lib ssh-extras
+cabal new-install --lib shh-extras
 ```
 
 The `shh` binary will look in your `$SHH_DIR` (defaults to `$HOME/.shh`) for
