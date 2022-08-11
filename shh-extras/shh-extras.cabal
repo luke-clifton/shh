@@ -20,7 +20,7 @@ source-repository head
 library
   exposed-modules: Shh.Prompt
   build-depends:
-    base >=4.11 && <4.16,
+    base >=4.11 && <4.17,
     shh  >= 0.2.0.0,
     time,
     hostname
