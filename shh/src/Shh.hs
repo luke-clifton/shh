@@ -53,6 +53,7 @@ module Shh
     , captureEndBy
     , captureEndBy0
     , captureLines
+    , captureWords
     -- | == Piping and Redirection
     , (|>)
     , (|!>)

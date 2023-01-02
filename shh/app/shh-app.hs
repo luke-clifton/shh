@@ -111,7 +111,7 @@ main = do
             shellMod <- getModificationTime "Shell.hs"
             hiMod    <- getModificationTime "Shell.hi"
             pure (shellMod > hiMod)
-            ) (\e -> if (isDoesNotExistError e) then pure True else throwIO e)
+            ) (\e -> if isDoesNotExistError e then pure True else throwIO e)
         when (outdated || pathDiff) $ do
             putStrLn "Rebuilding Shell.hs..."
             writeFile "paths" cp
