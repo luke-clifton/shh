@@ -82,7 +82,7 @@ properties = testGroup "Properties"
     , testProperty "pureProc id === readInputP (\\s -> writeOutput s)"
         $ \s -> ioProperty $ do
             a <- writeOutput s |> pureProc id |> capture
-            b <- writeOutput s |> readInputP writeOutput |> capture
+            b <- writeOutput s |> readInputP (\s -> writeOutput s) |> capture
             pure $ a === b
     , testProperty "string round trip" $ \s -> ioProperty $ do
         r <- writeOutput (s :: String) |> capture
