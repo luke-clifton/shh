@@ -206,7 +206,7 @@ if you want to use `OverloadedStrings`.
     {-# LANGUAGE ExtendedDefaultRules #-}
     $(loadEnv SearchPath)
 
-You now have all your executables available as simple to Haskell
+You now have all your executables available as simple Haskell
 functions. If you don't want to load your entire environment you
 can load specific commands directly:
 

@@ -35,7 +35,6 @@ import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.Lazy.Search as Search
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
-import Data.List (intercalate)
 import qualified Data.List.Split as Split
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
@@ -48,7 +47,6 @@ import GHC.IO.Exception (IOErrorType(ResourceVanished))
 import GHC.IO.Handle hiding (hGetContents)
 import GHC.IO.Handle.Internals
 import GHC.IO.Handle.Types
-import GHC.IO.Handle.Types (Handle(..))
 import GHC.Stack
 import Language.Haskell.TH
 import qualified System.Directory as Dir
@@ -105,7 +103,7 @@ instance Show Failure where
     show f = concat $
         [ "Command `"
         ]
-        ++ [intercalate " " (toString (failureProg f) : map show (failureArgs f))]
+        ++ [unwords (toString (failureProg f) : map show (failureArgs f))]
         ++
         [ "` failed [exit "
         , show (failureCode f)
@@ -150,7 +148,7 @@ pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
         concurrently a' b'
 
 
--- | Use this to send the output of on process into the input of another.
+-- | Use this to send the output of one process into the input of another.
 -- This is just like a shell's `|` operator.
 --
 -- The result is polymorphic in its output, and can result in either
@@ -170,7 +168,7 @@ a |> b = runProc $ fmap snd (a `pipe` b)
 infixl 1 |>
 
 
--- | Similar to `|!>` except that it connects stderr to stdin of the
+-- | Similar to `|>` except that it connects stderr to stdin of the
 -- next process in the chain.
 --
 -- NB: The next command to be `|>` on will recapture the stdout of
@@ -440,7 +438,7 @@ instance Shell IO where
 instance Shell Proc where
     runProc = id
 
--- | Run's a `Proc` in `IO`. Like `runProc`, but you get to choose the handles.
+-- | Runs a `Proc` in `IO`. Like `runProc`, but you get to choose the handles.
 -- This is UNSAFE to expose externally, because there are restrictions on what
 -- the Handle can be. Within shh, we never call `runProc'` with invalid handles,
 -- so we ignore that corner case (see `hDup`).

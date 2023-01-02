@@ -12,7 +12,7 @@ import Data.List
 import Control.Concurrent.Async
 
 -- Load everything...
--- $(loadEnv)
+-- $(loadEnv SearchPath)
 
 -- OR --
 

@@ -9,7 +9,9 @@ import Data.Time
 import Data.List
 
 -- | The type of GHCi prompt functions
-type PromptFn = [String] -> Int -> IO String
+type PromptFn = [String] -- ^ names of the modules currently in scope
+                -> Int -- ^ line number (as referenced in compiler messages) of the current prompt
+                -> IO String
 
 -- | Format a prompt line suitable for use with Shh.
 --
@@ -58,6 +60,6 @@ formatPrompt fmt _ _ = do
                 home <- getEnv "HOME"
                 if home `isPrefixOf` pwd
                 then
-                    pure $ "~" <> drop (length home) pwd
+                    pure $ '~' : drop (length home) pwd
                 else
                     pure pwd
