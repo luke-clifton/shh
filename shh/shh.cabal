@@ -13,7 +13,7 @@ copyright:           (c) 2018 - 2021 Luke Clifton
 category:            System
 build-type:          Custom
 extra-source-files:  ChangeLog.md, README.md
-cabal-version:       >=2.0
+cabal-version:       2.0
 
 custom-setup
   setup-depends:
