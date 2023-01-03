@@ -93,4 +93,5 @@ test-suite shh-tests
   main-is: Test.hs
   other-modules: Readme
   type: exitcode-stdio-1.0
+  other-modules: Build_doctests
   autogen-modules: Build_doctests
