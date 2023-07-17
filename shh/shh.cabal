@@ -1,5 +1,5 @@
 name:                shh
-version:             0.7.2.1
+version:             0.7.2.2
 synopsis:            Simple shell scripting from Haskell
 description:         Provides a shell scripting environment for Haskell. It
                      helps you use external binaries, and allows you to
@@ -29,19 +29,19 @@ library
   exposed-modules:     Shh
                      , Shh.Internal
   build-depends:
-    base             >= 4.9 && < 4.17,
+    base             >= 4.9 && < 4.18,
     async            >= 2.2.1 && < 2.3,
-    bytestring       >= 0.10.10 && < 0.12.0,
+    bytestring       >= 0.10.10 && < 0.13,
     deepseq          >= 1.4.3 && < 1.5,
     directory        >= 1.3.1 && < 1.4,
     filepath         >= 1.4.2 && < 1.5,
-    mtl              >= 2.2.2 && < 2.3,
+    mtl              >= 2.2.2 && < 2.4,
     process          >= 1.6.3 && < 1.7,
     split            >= 0.2.3 && < 0.3,
     stringsearch     >= 0.3.6.6 && < 0.4,
-    template-haskell >= 2.13.0 && < 2.19,
+    template-haskell >= 2.13.0 && < 2.21,
     containers       >= 0.5.11 && < 0.7,
-    unix             >= 2.7.2 && < 2.8,
+    unix             >= 2.7.2 && < 2.9,
     utf8-string
   hs-source-dirs:      src
   default-language:    Haskell2010
