@@ -18,7 +18,7 @@ cabal-version:       2.0
 custom-setup
   setup-depends:
       base
-    , Cabal
+    , Cabal          <3.11
     , cabal-doctest  >=1.0.9 && <1.1
 
 source-repository head
