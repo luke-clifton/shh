@@ -528,7 +528,7 @@ captureEndBy s = readInput (pure . endBy s)
 captureEndBy0 :: Shell io => io [ByteString]
 captureEndBy0 = captureEndBy "\0"
 
--- | Same as @'captureSplit' "\\n"@.
+-- | Same as @'captureEndBy' "\\n"@.
 captureLines :: Shell io => io [ByteString]
 captureLines = captureEndBy "\n"
 
