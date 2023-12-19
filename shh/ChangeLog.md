@@ -1,5 +1,9 @@
 # Revision history for shh
 
+## 0.7.3.0 -- 2023-12-19
+
+* Add a `--debug` flag, and default to being less noisy on startup.
+
 ## 0.7.1.4 -- 2021-07-01
 
 * Fix a bug where `|>` was too strict, causing SIGPIPE
