@@ -66,7 +66,7 @@ sanity() {
     git diff --exit-code || return 1
     git diff --cached --exit-code || return 1
     cabal new-build "$1" || return 1
-    cabal new-test "$1" || return 1
+    bash test.sh "$1" || return 1
     if cabal new-haddock --haddock-for-hackage "$1" | grep -A 5 'Missing documentation'
     then
         return 1

@@ -9,7 +9,6 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy.UTF8 (toString, fromString)
 import qualified Data.ByteString.Lazy.Char8 as C8
-import Test.DocTest
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -22,7 +21,6 @@ import System.FilePath (takeFileName)
 import System.IO
 import System.Environment
 
-import Build_doctests (flags, pkgs, module_sources)
 import Readme
 
 load SearchPath
@@ -38,7 +36,6 @@ main = do
     putStrLn " they are missing."
     putStrLn "################################################"
     unsetEnv "GHC_ENVIRONMENT"
-    doctest $ flags ++ pkgs ++ module_sources
     defaultMain tests
 
 tests :: TestTree

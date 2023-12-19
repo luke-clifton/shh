@@ -99,7 +99,7 @@ sanity pkg = tryFailure (do
     git "diff" "--exit-code"
     git "diff" "--cached" "--exit-code"
     cabal "new-build" pkg
-    cabal "new-test" pkg
+    bash "./test.sh" pkg
     gr <- cabal "new-haddock" "--haddock-for-hackage" pkg |> exitCode (grep "-A" 5 "Missing documentation")
     pure (gr == 0)
     ) >>= either (const $ pure False) pure
