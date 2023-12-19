@@ -38,8 +38,6 @@ defaultWrapper = "\
 \exec \"$@\"\n\
 \"
 
-debug = putStrLn
-
 doIfMissing :: FilePath -> IO () -> IO ()
 doIfMissing fp a = do
     doesFileExist fp >>= \case
@@ -62,20 +60,23 @@ main = do
         wrapper :: String
         wrapper = shhDir <> "/wrapper"
 
-    debug $ "Shh home is: " <> shhDir
+    let debug = elem "--debug" a
+    when debug $ putStrLn $ "Shh home is: " <> shhDir
+
+    case a of
+        ["--rebuild"] -> do
+            removeFile "Shell.hi"
+            removeFile "Shell.o"
+        ["--help"] -> do
+            putStrLn "usage: shh [--rebuild][--debug]"
+            exitSuccess
+        ["--debug"] -> pure ()
+        [] -> pure ()
+        _ -> error $ "Unknown arguments: " ++ show a
 
     createDirectoryIfMissing False shhDir
 
     withCurrentDirectory shhDir $ do
-        case a of
-            ["--rebuild"] -> do
-                removeFile "Shell.hi"
-                removeFile "Shell.o"
-            [] -> pure ()
-            ["--help"] -> do
-                putStrLn "usage: shh [--rebuild]"
-                exitSuccess
-            _ -> error $ "Unknown arguments: " ++ show a
         writeIfMissing "wrapper" defaultWrapper
         setPermissions "wrapper" $
             setOwnerExecutable True $
@@ -85,7 +86,7 @@ main = do
         doIfMissing "init.ghci" $ do
             putStrLn "Generating init.ghci..."
             putStrLn " ... checking for shh..."
-            tryFailure (exe (pack wrapper) "ghc" "-e" "import Shh") >>= \case
+            tryFailure (exe (pack wrapper) "ghc" (if debug then "" else "-v0") "-e" "import Shh") >>= \case
                 Left _ -> do
                     putStrLn "Please make the shh and shh-extras packages available in the shh"
                     putStrLn "environment (install it globally or modify the wrapper, see docs)."
@@ -93,7 +94,7 @@ main = do
                     exitFailure
                 Right _ -> writeFile "init.ghci" defaultInitGhci
             putStrLn " ... checking for shh-extras..."
-            tryFailure (exe (pack wrapper) "ghc" "-e" "import Shh.Prompt") >>= \case
+            tryFailure (exe (pack wrapper) "ghc" (if debug then "" else "-v0") "-e" "import Shh.Prompt") >>= \case
                 Left _ -> do
                     putStrLn "## WARNING ##########################################################"
                     putStrLn "# You do not have the shh-extras library installed, and so we are"
@@ -116,7 +117,7 @@ main = do
             putStrLn "Rebuilding Shell.hs..."
             writeFile "paths" cp
             -- Use absolute path of Shell.hs so that GHCi doesn't recompile.
-            exe (pack wrapper) "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs")
+            exe (pack wrapper) "ghc" "-c" "-dynamic" (shhDir <> "/Shell.hs") (if debug then "" else "-v0")
 
-    executeFile wrapper False ["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"] Nothing
+    executeFile wrapper False (["ghci", "-ghci-script", shhDir <> "/init.ghci", shhDir <> "/Shell.hs"] <> if debug then [] else ["-v0"]) Nothing
 
