@@ -18,7 +18,7 @@ cabal-version:       2.0
 custom-setup
   setup-depends:
     base   <4.21,
-    Cabal  <3.11
+    Cabal  <3.13
 
 source-repository head
   type: git
