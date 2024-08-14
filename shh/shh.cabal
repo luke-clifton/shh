@@ -28,7 +28,7 @@ library
   exposed-modules:     Shh
                      , Shh.Internal
   build-depends:
-    base             >= 4.9 && < 4.18,
+    base             >= 4.9 && < 4.21,
     async            >= 2.2.1 && < 2.3,
     bytestring       >= 0.10.10 && < 0.13,
     deepseq          >= 1.4.3 && < 1.5,
