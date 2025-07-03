@@ -250,4 +250,16 @@ unitTests = testGroup "Unit tests"
     , testCase "pipe" $ do
         s <- writeOutput "abcd" |> capture `pipe` capture
         s @?= ("abcd", "")
+    , testCase "parallel echo" $ replicateM_ 2 $ do
+        r <- mapConcurrently (\a -> captureTrim <| echo a) [1..70 :: Int]
+        r @?= map (C8.pack . show) [1..70]
+    , testCase "parallel sleep" $ do
+        r <- mapConcurrently (\a -> captureTrim <| sleep 2) [1..70 :: Int]
+        r @?= map (const "") [1..70]
+    , testCase "race" $ do
+        r <- race (captureTrim <| echo "abc") (sleep 2 >> (captureTrim <| echo "cde"))
+        r @?= Left "abc"
+    , testCase "cat >>>" $ do
+        r <- "abc" >>> cat |> capture
+        r @?= "abc"
     ]
