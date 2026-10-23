@@ -38,8 +38,8 @@ library
     stringsearch     >= 0.3.6.6 && < 0.4,
     template-haskell >= 2.13.0 && < 2.23,
     containers       >= 0.5.11 && < 0.8,
-    unix             >= 2.7.2 && < 2.9,
-    utf8-string
+    text             >= 1.2.3 && < 2.2,
+    unix             >= 2.7.2 && < 2.9
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options: -Wall
@@ -82,8 +82,7 @@ test-suite shh-tests
     tasty,
     tasty-quickcheck,
     tasty-hunit,
-    shh,
-    utf8-string
+    shh
   hs-source-dirs: test
   build-tool-depends: markdown-unlit:markdown-unlit
   main-is: Test.hs

@@ -7,7 +7,7 @@ import System.Directory
 import Shh
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
-import Data.ByteString.Lazy.UTF8 (toString, fromString)
+import Shh.Internal (toString)
 import qualified Data.ByteString.Lazy.Char8 as C8
 import Test.Tasty
 import Test.Tasty.HUnit
