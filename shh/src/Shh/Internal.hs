@@ -36,7 +36,6 @@ import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.Lazy.Search as Search
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
-import qualified Data.List.Split as Split
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Typeable
@@ -53,7 +52,7 @@ import Language.Haskell.TH
 import qualified System.Directory as Dir
 import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode(..))
-import System.FilePath (takeFileName, (</>))
+import System.FilePath (takeFileName, (</>), getSearchPath)
 import System.IO (IOMode(..), withFile, withBinaryFile, stderr, stdout, stdin)
 import System.IO.Unsafe (unsafePerformIO)
 import System.IO.Error
@@ -739,8 +738,7 @@ pathBins = map takeFileName <$> pathBinsAbs
 -- the whole path. First one found wins.
 pathBinsAbs :: IO [FilePath]
 pathBinsAbs = do
-    pathsVar <- Split.splitOn ":" <$> getEnv "PATH"
-    paths <- filterM Dir.doesDirectoryExist pathsVar
+    paths <- filterM Dir.doesDirectoryExist =<< getSearchPath
     findBinsIn paths
 
 -- | Get all uniquely named executables from the list of directories. Returns
