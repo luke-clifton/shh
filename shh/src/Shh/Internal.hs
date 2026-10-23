@@ -34,7 +34,9 @@ import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.Lazy.Search as Search
-import Data.ByteString.Lazy.UTF8 (toString)
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import Data.Text.Encoding.Error (lenientDecode)
 import Data.Char (isLower, isSpace, isAlphaNum, ord)
 import qualified Data.List.Split as Split
 import qualified Data.Map as Map
@@ -328,6 +330,11 @@ readInput f = nativeProc $ \i _ _ -> do
 -- with a newline.
 unlines :: [ByteString] -> ByteString
 unlines = toLazyByteString . mconcat . map (\l -> lazyByteString l <> char7 '\n')
+
+
+-- | Convert a @ByteString@ to a @String@
+toString :: ByteString -> String
+toString = TL.unpack . TLE.decodeUtf8With lenientDecode
 
 -- | Like @`readInput`@, but @`endBy`@s the string.
 --
