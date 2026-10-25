@@ -262,4 +262,10 @@ unitTests = testGroup "Unit tests"
     , testCase "cat >>>" $ do
         r <- "abc" >>> cat |> capture
         r @?= "abc"
+    , testCase "sequenced nativeProc sees sigpipe" $ do
+        r <- mapM (\i -> writeOutput (show i <> "\n")) [1 :: Int ..] |> Main.head "-n" 1 |> capture
+        r @?= "1\n"
+    , testCase "piped nativeProc sees sigpipe" $ do
+        r <- mapM_ (\i -> writeOutput (show i <> "\n") |> pureProc id) [1..] |> Main.head "-n" 1 |> capture
+        r @?= "1\n"
     ]

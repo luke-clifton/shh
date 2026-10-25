@@ -127,6 +127,17 @@ class Shell f where
 buildProc :: Shell f => (Handle -> Handle -> Handle -> IO a) -> f a
 buildProc = runProc . Proc
 
+
+-- | Catch a broken pipe error, and hide it. When a SIGPIPE occurs in a
+-- nativeProc, it needs to destroy that proc entirely, but not the whole
+-- program, unless the output of the proc is captured and inspected. So
+-- we wrap it up. The inspection of this error is rare, as usually @|>@
+-- would discard it, as it only keeps the second argument.
+hideBrokenPipe :: IOError -> IO a
+hideBrokenPipe e
+    | ioeGetErrorType e == ResourceVanished = pure (throw e)
+    | otherwise = throwIO e
+
 -- | Like @`|>`@ except that it keeps both return results. Be aware
 -- that the @fst@ element of this tuple may be hiding a @SIGPIPE@
 -- exception that will explode on you once you look at it.
@@ -136,7 +147,7 @@ pipe :: Shell f => Proc a -> Proc b -> f (a, b)
 pipe (Proc a) (Proc b) = buildProc $ \i o e ->
     withPipe $ \r w -> do
         let
-            a' = a i w e `finally` hClose w
+            a' = handle hideBrokenPipe $ a i w e `finally` hClose w
             b' = b r o e `finally` hClose r
         concurrently a' b'
 
@@ -145,7 +156,7 @@ pipeErr :: Shell f => Proc a -> Proc b -> f (a, b)
 pipeErr (Proc a) (Proc b) = buildProc $ \i o e -> do
     withPipe $ \r w -> do
         let
-            a' = a i o w `finally` hClose w
+            a' = handle hideBrokenPipe $ a i o w `finally` hClose w
             b' = b r o e `finally` hClose r
         concurrently a' b'
 
@@ -247,7 +258,7 @@ infixl 9 &!>
 -- | Lift a Haskell function into a @`Proc`@. The handles are the @stdin@
 -- @stdout@ and @stderr@ of the resulting @`Proc`@
 nativeProc :: (Shell f, NFData a) => (Handle -> Handle -> Handle -> IO a) -> f a
-nativeProc f = runProc $ Proc $ \i o e -> handle handler $ do
+nativeProc f = runProc $ Proc $ \i o e -> do
     -- We duplicate these so that you can't accidentally close the
     -- real ones.
     withDuplicates i o e $ \i' o' e' -> do
@@ -255,19 +266,6 @@ nativeProc f = runProc $ Proc $ \i o e -> handle handler $ do
             `finally` hClose i'
             `finally` hClose o'
             `finally` hClose e'
-
-    where
-        -- The resource vanished error only occurs when upstream pipe closes.
-        -- This can only happen with the `|>` combinator, which will discard
-        -- the result of this `Proc` anyway. If the return value is somehow
-        -- inspected, or maybe if the exception is somehow legitimate, we
-        -- simply package it up as an exploding return value. `runProc` will
-        -- make sure to evaluate all `Proc`'s to WHNF in order to uncover it.
-        -- This should never happen. *nervous*
-        handler :: IOError -> IO a
-        handler e
-            | ioeGetErrorType e == ResourceVanished = pure (throw e)
-            | otherwise = throwIO e
 
 -- | Flipped version of `|>` with lower precedence.
 --
