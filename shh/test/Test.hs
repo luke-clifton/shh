@@ -268,4 +268,10 @@ unitTests = testGroup "Unit tests"
     , testCase "piped nativeProc sees sigpipe" $ do
         r <- mapM_ (\i -> writeOutput (show i <> "\n") |> pureProc id) [1..] |> Main.head "-n" 1 |> capture
         r @?= "1\n"
+    , testCase "catchFailure handler handles" $ do
+        r <- catchFailure false (\_ -> echo "handled") |> capture
+        r @?= "handled\n"
+    , testCase "catchFailureJust handler handles" $ do
+        r <- catchFailureJust (Just) false (\_ -> echo "handled") |> capture
+        r @?= "handled\n"
     ]

@@ -601,13 +601,15 @@ tryFailureJust pr (Proc f) = buildProc $ \i o e -> tryJust pr (f i o e)
 
 -- | Run a `Proc` with an action to take if an exception is thrown.
 catchFailure :: Shell m => Proc a -> (Failure -> Proc a) -> m a
-catchFailure (Proc f) pr = buildProc $ \i o e -> catch (f i o e) (runProc . pr)
+catchFailure (Proc f) h = buildProc $ \i o e ->
+    catch (f i o e) (\ex -> let Proc h' = h ex in h' i o e)
 
 -- | Like @`catchFailureJust`@ except that it takes an exception predicate
 -- which selects which exceptions to catch. Any exceptions not matching the
 -- predicate (returning @Nothing@) are re-thrown.
 catchFailureJust :: Shell m => (Failure -> Maybe b) -> Proc a -> (b -> Proc a) -> m a
-catchFailureJust pr (Proc f) h = buildProc $ \i o e -> catchJust pr (f i o e) (runProc . h)
+catchFailureJust pr (Proc f) h = buildProc $ \i o e ->
+    catchJust pr (f i o e) (\ex -> let Proc h' = h ex in h' i o e)
 
 -- | Apply a function that translates non-0 exit codes to results. Any code
 -- that returns a @Nothing@ will be thrown as a @`Failure`@.
